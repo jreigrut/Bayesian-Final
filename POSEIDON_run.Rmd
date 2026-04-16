@@ -1,0 +1,99 @@
+---
+title: "Untitled"
+author: "JD Reigrut"
+date: "2026-04-09"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# POSEIDON GUI Setup Instructions
+
+These instructions explain how to set up and run the POSEIDON fishery agent-based model GUI from the `poseidon-gui` repository.
+
+## Prerequisites
+
+- **Java JDK 8 or later** (tested with Corretto 11, 17, and 21)
+- **Git** with submodule support
+
+Verify your prerequisites:
+
+```{bash}
+export JAVA_HOME=$(/usr/libexec/java_home -v 1.8)
+java --version
+# Should show version 8 (1.8) or later
+
+git --version
+# Should show version 2.x or later
+```
+
+## Step 1: Clone the repository
+
+```{bash}
+git clone https://github.com/poseidon-fisheries/poseidon-gui.git
+cd poseidon-gui
+```
+
+## Step 2: Fix the submodule URL (SSH → HTTPS)
+
+The submodule is configured with an SSH URL that requires GitHub SSH keys.
+Change it to HTTPS:
+
+```{bash}
+sed -i.bak 's|git@github.com:poseidon-fisheries/POSEIDON.git|https://github.com/poseidon-fisheries/POSEIDON.git|' .gitmodules
+rm -f .gitmodules.bak
+git submodule sync
+```
+
+## Step 3: Initialize the POSEIDON submodule
+
+```{bash}
+git submodule update --init
+```
+
+This checks out the POSEIDON library at the specific commit pinned by poseidon-gui.
+
+## Step 4: Fix Java compatibility in POSEIDON
+
+The POSEIDON `build.gradle` requires a Java 8 toolchain, which may not be
+available. Replace the toolchain block with source/target compatibility so
+any JDK 8+ works:
+
+```{bash}
+sed -i.bak '/^java {$/,/^}$/c\
+java {\
+    sourceCompatibility = JavaVersion.VERSION_1_8\
+    targetCompatibility = JavaVersion.VERSION_1_8\
+}' POSEIDON/build.gradle
+rm -f POSEIDON/build.gradle.bak
+```
+
+## Step 5: Fix Java compatibility in poseidon-gui
+
+Apply the same Java compatibility fix to `app/build.gradle.kts`, and
+suppress warnings that newer JDKs emit for old Java 8 code:
+
+```{bash}
+sed -i.bak '/^java {$/,/^}$/c\
+java {\
+    sourceCompatibility = JavaVersion.VERSION_1_8\
+    targetCompatibility = JavaVersion.VERSION_1_8\
+}' app/build.gradle.kts
+rm -f app/build.gradle.kts.bak
+```
+
+```{bash}
+rm -f app/build.gradle.kts.bak
+```
+
+## Step 6: Run the GUI
+
+```{bash}
+./gradlew :app:run
+```
+
+This will compile the POSEIDON library and the GUI app, then launch the
+Swing-based POSEIDON GUI.
+

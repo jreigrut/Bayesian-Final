@@ -1,0 +1,799 @@
+---
+title: "Final Project"
+author: "JD Reigrut"
+date: "2026-04-09"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+# Claude used to troubleshoot code 
+
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(
+  here,
+  tidyverse, 
+  readr,
+  JABBA,
+  cmdstanr,
+  ggmcmc,
+  bayesplot, 
+  posterior,
+  kableExtra)
+options(kableExtra.auto_format = FALSE)
+```
+
+# Problem Definition 
+
+A surplus production model is a simple population dynamics model used for fisheries stock assessment. The objective of a surplus production model is to estimate the Maximum Sustainable Yield (MSY) using limited data, to identify the optimum harvest effort that avoids depleting the stock. The equation for the surplus production model is:
+
+$B_{t+1}= B_{t}+rB_{t}(1-B_{t} / K) - qEB_{t}$
+
+Where 
+$B$ is the stock biomass at time $t$
+$r$ is the intrinsic growth rate
+$K$ is the environmental carrying capacity (units/cell)
+$q$ is the catchability coefficient
+$E$ is fishing effort
+
+The catchability coefficient ($q$) relates fishing effort to fishing mortality and is assumed to be constant in this equation. 
+
+However, the true value of the catchability coefficient changes with increased fishing efficiency, fish density (hyperstability or hyperdepletion), environmental changes, or technological improvements. This has the potential to impact the determined MSY of a stock, having implications for policy development and fisher economic gain. As such, my project aims to evaluate whether assuming a constant catchability coefficient ($q$) in a Bayesian stock assessment leads to biased estimates when fishers are adaptively targeting aggregations. 
+
+The POSEIDON model is an interactive agent-based modeling platform that serves as an interactive tool that encodes certain parameters within a dynamic spatial-visual platform. Users of the interface apply values to these parameters to evaluate the effect of various policy interventions on ecological and fisheries outcomes. Using this model, I will be able to simulate fisheries data where fishers are highly exploratory versus where fishers use explore-exploit-imitate to aggregate effort on high-density patches through patterns of exploitation and imitation. 
+
+With these two datasets, I will run six models – fitting Bayesian surplus production models with both uninformative and informative priors (assuming good biological data for the simulated fish species) to evaluate:
+
+1) How does adaptive fisher behavior bias posterior estimates of MSY in a Bayesian surplus production model that assumes constant catchability?
+
+2) How does this misspecification affect posterior uncertainty, including CI width?
+
+3) To what extent can informative priors mitigate bias arising from misspecified catchability?
+
+4) Do Bayesian models that allow for flexible or time-varying catchability better recover true MSY under adaptive fishing behavior?
+
+# Simulation of Data #
+
+The POSEIDON model was used to simulate fishing scenerios with two different types of fisher behavior. These fisher simulation runs differ only in fisher targeting behavior, all else being held constant. 
+
+In Scenerio A - fishers move randomly, catch is roughly proportional to abundance. This means that CPUE is a good index of biomass and constant $q$ is approximately valid. 
+
+In Scenerio B - fishers use POSEIDON's adaptive explore-exploit-imitate algorithm to seek out high-density patches. Agents learn to efficiently target remaining fish aggreagations, depleting nearby areas first and expanding outward. CPUE stays high as biomass drops (hyperstability), meaning the constant $q$ assumption is violated. 
+
+The constant parameters of both simulations are:
+
+$K = 3000$ (max fish per cell) * 2500 cells_sq
+$K = 7500000$ fish in the system
+
+$r = 0.35$
+
+$q = 0.002$
+
+```{r, include=FALSE}
+true_msy <- 0.35 * 7500000 / 4
+```
+
+These parameters result in a $MSY_{true} = 656,250$
+
+
+Fleet size  = 100
+
+Speed = 5 km/h
+
+Maximum of 7 days at sea 
+
+12 hours between each departure
+
+Fuel tank size = 100,000 liters
+
+Liters/km = 10
+
+Gas price/liter = 0.01
+
+Market price of fish = $10
+
+Hold size = 200
+
+Each fisher has two information sharing 'friendships'
+
+
+### Scenerio A - Fixed behavioral probability 
+
+Exploration probability = 0.95 (high)
+
+Imitation probability = 0.0 (no imitation)
+
+### Scenerio B - Adaptive behavioral probability 
+
+Exploration probability = 0.05 (low random exploration)
+  Min = 0.01
+  
+Imitation probability = 1.0 (high social imitation)
+  Increment multiplier= 0.03 (learning speed)
+  
+### Dataset 
+
+A simulation of 30 years was run for each scenario with the given parameters. 
+
+Species biomass (kg), total catch (kg), average distance from port (km), average last trip hourly income ($), hours out, and effort were collected from the simulation. CPUE was calculated from total catch (kg) and effort. 
+
+Two runs with random seeds were conducted for each scenario. The first 5 years were removed to drop potential trends arising from initialization and to remove the learning artifact in the Scenario B. 
+
+```{r, include=FALSE}
+# Combining datasets from POSIEDON csv outputs
+
+## Scenerio A
+
+### Run 1
+incomeperhour_scenA_run1 <- read_csv(file = here("BayesFinal", "incomeperhour_scen1_run1.csv"), col_names = "income_per_hour")  %>%
+ mutate(year = row_number())
+
+effort_scenA_run1 <- read_csv(file = here("BayesFinal", "effort_scen1_run1.csv"), col_names = "effort") %>%
+  mutate(year = row_number())
+
+distance_scenA_run1 <- read_csv(file = here("BayesFinal", "distance_scen1_run1.csv"), col_names = "distance")%>%
+  mutate(year = row_number())
+
+catchkg_scenA_run1 <- read_csv(file = here("BayesFinal", "catch_scen1_run1.csv"), col_names = "catch_kg")%>%
+  mutate(year = row_number())
+
+biomass_scenA_run1 <- read_csv(file = here("BayesFinal", "biomass_scen1_run1.csv"), col_names = "biomass")%>%
+  mutate(year = row_number())
+
+hoursout_scenA_run1 <- read_csv(file = here("BayesFinal", "hours_scen1_run1.csv"), col_names = "hoursout")%>%
+  mutate(year = row_number())
+
+### Run 2
+incomeperhour_scenA_run2 <- read_csv(file = here("BayesFinal", "incomeperhour_scen1_run2.csv"), col_names = "income_per_hour")  %>%
+ mutate(year = row_number())
+
+effort_scenA_run2 <- read_csv(file = here("BayesFinal", "effort_scen1_run2.csv"), col_names = "effort") %>%
+  mutate(year = row_number())
+
+distance_scenA_run2 <- read_csv(file = here("BayesFinal", "distance_scen1_run2.csv"), col_names = "distance")%>%
+  mutate(year = row_number())
+
+catchkg_scenA_run2 <- read_csv(file = here("BayesFinal", "catch_scen1_run2.csv"), col_names = "catch_kg")%>%
+  mutate(year = row_number())
+
+biomass_scenA_run2 <- read_csv(file = here("BayesFinal", "biomass_scen1_run2.csv"), col_names = "biomass")%>%
+  mutate(year = row_number())
+
+hoursout_scenA_run2 <- read_csv(file = here("BayesFinal", "hours_scen1_run2.csv"), col_names = "hoursout")%>%
+  mutate(year = row_number())
+
+scenA_run1 <- list(effort_scenA_run1, distance_scenA_run1, catchkg_scenA_run1, biomass_scenA_run1, hoursout_scenA_run1) %>%
+  reduce(full_join, by = "year") %>%
+  mutate(
+    run = 1,
+    CPUE_true = catch_kg/effort,
+    obs_q = CPUE_true/biomass,
+    CPUE_obs = CPUE_true * exp(rnorm(length(CPUE_true), 0, 0.2))) %>%
+    filter(year >= 6, year <=60 )  %>%
+  mutate(year = row_number()) # re-indexing years after filter
+
+scenA_run2 <- list(effort_scenA_run2, distance_scenA_run2, catchkg_scenA_run2, biomass_scenA_run2, hoursout_scenA_run2) %>%
+  reduce(full_join, by = "year") %>%
+  mutate(
+    run = 2,
+    CPUE_true = catch_kg/effort,
+    obs_q = CPUE_true/biomass,
+    CPUE_obs = CPUE_true * exp(rnorm(length(CPUE_true), 0, 0.2))) %>%
+  filter(year >= 6, year <=60 )  %>%
+  mutate(year = row_number()) # re-indexing years after filter
+
+scenA <- bind_rows(scenA_run1, scenA_run2)
+
+
+## Scenario B
+
+### Run 1
+incomeperhour_scenB_run1 <- read_csv(file = here("BayesFinal", "incomeperhour_scen2_run1.csv"), col_names = "income_per_hour")  %>%
+ mutate(year = row_number())
+
+effort_scenB_run1 <- read_csv(file = here("BayesFinal", "effort_scen2_run1.csv"), col_names = "effort") %>%
+  mutate(year = row_number())
+
+distance_scenB_run1 <- read_csv(file = here("BayesFinal", "distance_scen2_run1.csv"), col_names = "distance")%>%
+  mutate(year = row_number())
+
+catchkg_scenB_run1 <- read_csv(file = here("BayesFinal", "catch_scen2_run1.csv"), col_names = "catch_kg")%>%
+  mutate(year = row_number())
+
+biomass_scenB_run1 <- read_csv(file = here("BayesFinal", "biomass_scen2_run1.csv"), col_names = "biomass")%>%
+  mutate(year = row_number())
+
+hoursout_scenB_run1 <- read_csv(file = here("BayesFinal", "hours_scen2_run1.csv"), col_names = "hoursout")%>%
+  mutate(year = row_number())
+
+### Run 2
+incomeperhour_scenB_run2 <- read_csv(file = here("BayesFinal", "incomeperhour_scen2_run2.csv"), col_names = "income_per_hour")  %>%
+ mutate(year = row_number())
+
+effort_scenB_run2 <- read_csv(file = here("BayesFinal", "effort_scen2_run2.csv"), col_names = "effort") %>%
+  mutate(year = row_number())
+
+distance_scenB_run2 <- read_csv(file = here("BayesFinal", "distance_scen2_run2.csv"), col_names = "distance")%>%
+  mutate(year = row_number(),
+         run=2)
+
+catchkg_scenB_run2 <- read_csv(file = here("BayesFinal", "catch_scen2_run2.csv"), col_names = "catch_kg")%>%
+  mutate(year = row_number())
+
+biomass_scenB_run2 <- read_csv(file = here("BayesFinal", "biomass_scen2_run2.csv"), col_names = "biomass")%>%
+  mutate(year = row_number())
+
+hoursout_scenB_run2 <- read_csv(file = here("BayesFinal", "hours_scen2_run2.csv"), col_names = "hoursout")%>%
+  mutate(year = row_number())
+
+scenB_run1 <- list(effort_scenB_run1, distance_scenB_run1, catchkg_scenB_run1, biomass_scenB_run1, hoursout_scenB_run1) %>%
+  reduce(full_join, by = "year") %>%
+  mutate(
+    run = 1,
+    CPUE_true = catch_kg/effort,
+    obs_q = CPUE_true/biomass,
+    CPUE_obs = CPUE_true * exp(rnorm(length(CPUE_true), 0, 0.2))) %>%
+  filter(year >= 6, year <=60 )  %>%
+  mutate(year = row_number())  # re-indexing years after filter
+
+scenB_run2 <- list(effort_scenB_run2, distance_scenB_run2, catchkg_scenB_run2, biomass_scenB_run2, hoursout_scenB_run2) %>%
+  reduce(full_join, by = "year") %>%
+  mutate(
+    run = 2,
+    CPUE_true = catch_kg/effort,
+    obs_q = CPUE_true/biomass,
+    CPUE_obs = CPUE_true * exp(rnorm(length(CPUE_true), 0, 0.2))) %>%
+  filter(year >= 6, year <=60 ) %>%
+  mutate(year = row_number()) # re-indexing years after filter
+
+scenB <- bind_rows(scenB_run1, scenB_run2)
+```
+
+```{r, echo=FALSE}
+#CPUE Plot
+ggplot() +
+    geom_line(data = scenA_run1, aes(year, CPUE_true, color = "Scenario A: Random")) +
+    geom_line(data = scenB_run1, aes(year, CPUE_true, color = "Scenario B: Adaptive")) +
+    labs(title = "Observed CPUE over time",
+         y = "CPUE", x = "Year") +
+  theme_bw() +
+theme(text = element_text(family = "serif", size = 18),
+        axis.title.x = element_text(margin = margin(t = 7), size = 14),
+        axis.title.y = element_text(margin = margin(r = 10)))
+```
+Scenario A shows a steady decrease in CPUE over time. As a result of highly exploratory behavior, the decrease in biomass (seen below) is directly tied to a decrease in CPUE. 
+
+Scenario B shows an initial increase in CPUE given higher biomass and then declines more slowly than in Scenerio A. Adaptive behavior enables fishers to imitate and exploit centers of high biomass, leading to increased instability in CPUE as fishers find and deplete these centers. 
+
+```{r, echo=FALSE}
+# Biomass Plot
+ggplot() +
+    geom_line(data = scenA_run1, aes(year, biomass, color = "Scenario A: Random")) +
+    geom_line(data = scenB_run1, aes(year, biomass, color = "Scenario B: Adaptive")) +
+    labs(title = "Observed Biomass over time",
+         y = "Biomass (kg)", x = "Year") +
+  theme_bw() +
+  theme(text = element_text(family = "serif", size = 18),
+        axis.title.x = element_text(margin = margin(t = 7), size = 14),
+        axis.title.y = element_text(margin = margin(r = 10)))
+```
+
+Both Scenarios at year 0 have the same initial biomass. In Scenario A, biomass rapidly decreases initially and steadies to a point of limited decrease in later years, but remains above zero. In Scenario B, the initial biomass spike is caused by the inefficency associated with learning. However, Scenario B shows a similar pattern of rapid decline followed by stabilization. 
+
+
+```{r, echo = FALSE}
+#CPUE/Biomass Plot
+ggplot() +
+    geom_line(data = scenA, aes(year, obs_q, color = "Scenario A: Random")) +
+    geom_line(data = scenB, aes(year, obs_q, color = "Scenario B: Adaptive")) +
+    labs(title = "Observed q over time",
+         subtitle = "Rising q in Scenario B = hyperstability confirmed",
+         y = "Observed catchability (CPUE/Biomass)", x = "Year") +
+  theme_bw() +
+  theme(text = element_text(family = "serif", size = 18),
+        axis.title.x = element_text(margin = margin(t = 7), size = 14),
+        axis.title.y = element_text(margin = margin(r = 10)))
+
+```
+Scenario A represents consistency with the assumption for a standard population surplus model. The relationship between CPUE and biomass creates a largely flat trend where CPUE decline is proportional with biomass decline over time. The trend indicates that a constant q assumption is largely valid. 
+
+In contrast,  Scenario B shows hyperstability. The relationship between CPUE and biomass is initially low due to learning restrictions, then increases despite decreasing biomass as a result of advantageous exploitation and imitation behavior. Spatial targeting results in a more volatile pattern as established previously. The trend indicates that a constant q assumption is not valid. 
+
+# Model 1: Standard Surplus Production 
+
+## Scenario A
+
+```{r, include=FALSE}
+#Model Fit
+scenA_catch <- data.frame(
+  year  = seq_len(nrow(scenA_run1)),
+  catch = as.numeric(scenA_run1$catch_kg)
+)
+
+scenA_cpue <- data.frame(
+  year = seq_len(nrow(scenA_run1)),
+  cpue = as.numeric(scenA_run1$CPUE_obs)
+)
+
+
+scenA_input <- build_jabba(
+  catch = scenA_catch,
+  cpue  = scenA_cpue,
+  assessment = "ScenA Standard",
+  scenario = "ScenA Standard",
+  model.type = "Schaefer",
+  sigma.est = FALSE,
+  fixed.obsE = 0.1,
+  r.dist   = "lnorm",
+  r.prior  = c(0.4, 0.8),
+  K.dist   = "lnorm",
+  K.prior  = c(4500000, 1.5),
+  psi.dist  = "lnorm",
+  psi.prior = c(0.9, 0.3),
+  q1.dist  = "lnorm",
+  q1.prior = c(0.001, 1) 
+)
+
+scenA_run1_model = fit_jabba(scenA_input,quickmcmc=FALSE, ni = 100000)
+```
+
+```{r, echo=FALSE}
+# Plots
+# Make individual plots
+jbplot_catcherror(scenA_run1_model)
+jbplot_ppdist(scenA_run1_model)
+jbplot_cpuefits(scenA_run1_model)
+jbplot_logfits(scenA_run1_model)
+
+# Plot Status Summary
+par(mfrow=c(3,2),mar = c(3.5, 3.5, 0.5, 0.1))
+jbplot_trj(scenA_run1_model,type="B",add=T)
+jbplot_trj(scenA_run1_model,type="F",add=T)
+jbplot_trj(scenA_run1_model,type="BBmsy",add=T)
+jbplot_trj(scenA_run1_model,type="FFmsy",add=T)
+jbplot_spphase(scenA_run1_model,add=T)
+jbplot_kobe(scenA_run1_model,add=T)
+```
+
+```{r, include=FALSE}
+scenA_model_MSY <- scenA_run1_model$refpts_posterior$MSY
+
+MSY_summary_scenA_model1 <- data.frame(
+  mean = mean(scenA_model_MSY),
+  median = median(scenA_model_MSY),
+  lwr = quantile(scenA_model_MSY, 0.025),
+  upr = quantile(scenA_model_MSY, 0.975)
+)
+
+MSY_summary_scenA_model1 <- MSY_summary_scenA_model1 %>%
+  mutate(
+    model = "Uninformative Priors - Scen A"
+  )
+```
+
+```{r}
+summary(scenA_run1_model$mcmc)
+```
+
+
+## Scenario B
+
+```{r, include=FALSE}
+#Model Fit
+scenB_catch <- data.frame(
+  year  = seq_len(nrow(scenB_run1)),
+  catch = as.numeric(scenB_run1$catch_kg)
+)
+
+scenB_cpue <- data.frame(
+  year = seq_len(nrow(scenB_run1)),
+  cpue = as.numeric(scenB_run1$CPUE_obs)
+)
+
+
+scenB_input <- build_jabba(
+  catch = scenB_catch,
+  cpue  = scenB_cpue,
+  assessment = "ScenB Standard",
+  scenario = "TestRun",
+  model.type = "Schaefer",
+  sigma.est = FALSE,
+  fixed.obsE = 0.1,
+  r.dist   = "lnorm",
+  r.prior  = c(0.4, 0.8),
+  K.dist   = "lnorm",
+  K.prior  = c(4500000, 1.5),
+  psi.dist  = "lnorm",
+  psi.prior = c(0.9, 0.3),
+  q1.dist  = "lnorm",
+  q1.prior = c(0.001, 1) 
+)
+
+
+scenB_run1_model = fit_jabba(scenB_input,quickmcmc=FALSE, ni = 100000)
+```
+
+```{r, echo=FALSE}
+# Plots
+# Make individual plots
+jbplot_catcherror(scenB_run1_model)
+jbplot_ppdist(scenB_run1_model)
+jbplot_cpuefits(scenB_run1_model)
+jbplot_logfits(scenB_run1_model)
+
+# Plot Status Summary
+par(mfrow=c(3,2),mar = c(3.5, 3.5, 0.5, 0.1))
+jbplot_trj(scenB_run1_model,type="B",add=T)
+jbplot_trj(scenB_run1_model,type="F",add=T)
+jbplot_trj(scenB_run1_model,type="BBmsy",add=T)
+jbplot_trj(scenB_run1_model,type="FFmsy",add=T)
+jbplot_spphase(scenB_run1_model,add=T)
+jbplot_kobe(scenB_run1_model,add=T)
+```
+```{r, include=FALSE}
+scenB_model_MSY <- scenB_run1_model$refpts_posterior$MSY
+MSY_summary_scenB_model1 <- data.frame(
+  mean = mean(scenB_model_MSY),
+  median = median(scenB_model_MSY),
+  lwr = quantile(scenB_model_MSY, 0.025),
+  upr = quantile(scenB_model_MSY, 0.975)
+)
+
+MSY_summary_scenB_model1 <- MSY_summary_scenB_model1 %>%
+  mutate(
+    model = "Uninformative Priors - Scen B"
+  )
+```
+
+```{r}
+model1 <- bind_rows(MSY_summary_scenA_model1, MSY_summary_scenB_model1)
+model1 <- model1 %>% 
+  mutate(model = factor(model),
+        bias = mean - true_msy,
+        lwr_bias = lwr - true_msy, 
+        upr_bias = upr-true_msy,
+        rel_bias = (mean - true_msy) / true_msy,
+        covered = lwr <= true_msy & upr >= true_msy,
+        ci_width = upr - lwr)
+
+#MSY
+ggplot(aes(x = model, y = mean), data = model1) +
+  geom_hline(yintercept = 656250, linetype = "dashed", color = "grey50", alpha = 0.9) +
+  geom_linerange(aes(ymin = lwr, ymax=upr), linewidth = 1.2) +
+  geom_point(aes(), size = 4) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    legend.position = ""
+  ) +
+  labs(
+    x = "Model",
+    y = "Estimated MSY (kg/yr)",
+    title = "Estimated MSY compared to True MSY - Uninformative Priors"
+  ) +
+  theme(text = element_text(family = "serif", size = 16),
+        axis.title.x = element_text(margin = margin(t = 7), size = 14),
+        axis.title.y = element_text(margin = margin(r = 10)))
+```
+
+# Model 2: Standard Surplus Production + Informative Priors
+
+## Scenario A
+
+```{r, include=FALSE}
+#Model Fit
+scenA_input2 <- build_jabba(
+  catch = scenA_catch,
+  cpue  = scenA_cpue,
+  assessment = "ScenA Informative",
+  scenario = "TestRun",
+  model.type = "Schaefer",
+  sigma.est = FALSE,
+  fixed.obsE = 0.1,
+  r.dist   = "lnorm",
+  r.prior  = c(0.35, 0.2),
+  K.dist   = "lnorm",
+  K.prior  = c(5000000, 0.2),
+  psi.dist  = "lnorm",
+  psi.prior = c(1, 0.2),
+  q1.dist  = "lnorm",
+  q1.prior = c(0.001, 1) 
+)
+
+scenA_run1_model2 = fit_jabba(scenA_input2,quickmcmc=FALSE, ni = 100000)
+```
+
+```{r, echo=FALSE}
+# Plots
+# Make individual plots
+jbplot_catcherror(scenA_run1_model2)
+jbplot_ppdist(scenA_run1_model2)
+jbplot_cpuefits(scenA_run1_model2)
+jbplot_logfits(scenA_run1_model2)
+
+# Plot Status Summary
+par(mfrow=c(3,2),mar = c(3.5, 3.5, 0.5, 0.1))
+jbplot_trj(scenA_run1_model2,type="B",add=T)
+jbplot_trj(scenA_run1_model2,type="F",add=T)
+jbplot_trj(scenA_run1_model2,type="BBmsy",add=T)
+jbplot_trj(scenA_run1_model2,type="FFmsy",add=T)
+jbplot_spphase(scenA_run1_model2,add=T)
+jbplot_kobe(scenA_run1_model2,add=T)
+```
+```{r, include=FALSE}
+scenA_model2_MSY <- scenA_run1_model2$refpts_posterior$MSY
+MSY_summary_scenA_model2 <- data.frame(
+  mean = mean(scenA_model2_MSY),
+  median = median(scenA_model2_MSY),
+  lwr = quantile(scenA_model2_MSY, 0.025),
+  upr = quantile(scenA_model2_MSY, 0.975)
+)
+
+MSY_summary_scenA_model2 <- MSY_summary_scenA_model2 %>%
+  mutate(
+    model = "Uninformative Priors - Scen A"
+  )
+```
+
+## Scenario B
+
+```{r, include=FALSE}
+#Model Fit
+scenB_input2 <- build_jabba(
+  catch = scenB_catch,
+  cpue  = scenB_cpue,
+  assessment = "ScenB Informative",
+  scenario = "TestRun",
+  model.type = "Schaefer",
+  sigma.est = FALSE,
+  fixed.obsE = 0.1,
+  r.dist   = "lnorm",
+  r.prior  = c(0.35, 0.2),
+  K.dist   = "lnorm",
+  K.prior  = c(5000000, 0.2),
+  psi.dist  = "lnorm",
+  psi.prior = c(1, 0.2),
+  q1.dist  = "lnorm",
+  q1.prior = c(0.001, 1) 
+)
+
+scenB_run1_model2 = fit_jabba(scenB_input2,quickmcmc=FALSE, ni = 100000)
+```
+
+```{r, echo=FALSE}
+# Plots
+# Make individual plots
+jbplot_catcherror(scenB_run1_model2)
+jbplot_ppdist(scenB_run1_model2)
+jbplot_cpuefits(scenB_run1_model2)
+jbplot_logfits(scenB_run1_model2)
+
+# Plot Status Summary
+par(mfrow=c(3,2),mar = c(3.5, 3.5, 0.5, 0.1))
+jbplot_trj(scenB_run1_model2,type="B",add=T)
+jbplot_trj(scenB_run1_model2,type="F",add=T)
+jbplot_trj(scenB_run1_model2,type="BBmsy",add=T)
+jbplot_trj(scenB_run1_model2,type="FFmsy",add=T)
+jbplot_spphase(scenB_run1_model2,add=T)
+jbplot_kobe(scenB_run1_model2,add=T)
+```
+
+```{r, include=FALSE}
+scenB_model2_MSY <- scenB_run1_model2$refpts_posterior$MSY
+MSY_summary_scenB_model2 <- data.frame(
+  mean = mean(scenB_model2_MSY),
+  median = median(scenB_model2_MSY),
+  lwr = quantile(scenB_model2_MSY, 0.025),
+  upr = quantile(scenB_model2_MSY, 0.975)
+)
+
+MSY_summary_scenB_model2 <- MSY_summary_scenB_model2 %>%
+  mutate(
+    model = "Informative Priors - Scen B"
+  )
+```
+
+```{r}
+model2 <- bind_rows(MSY_summary_scenA_model2, MSY_summary_scenB_model2)
+model2 <- model2 %>% 
+  mutate(model = factor(model),
+        bias = mean - true_msy,
+        lwr_bias = lwr - true_msy, 
+        upr_bias = upr-true_msy,
+        rel_bias = (mean - true_msy) / true_msy,
+        covered = lwr <= true_msy & upr >= true_msy,
+        ci_width = upr - lwr)
+
+#MSY
+ggplot(aes(x = model, y = mean), data = model2) +
+  geom_hline(yintercept = 656250, linetype = "dashed", color = "grey50", alpha = 0.9) +
+  geom_linerange(aes(ymin = lwr, ymax=upr), linewidth = 1.2) +
+  geom_point(aes(), size = 4) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    legend.position = ""
+  ) +
+  labs(
+    x = "Model",
+    y = "Estimated MSY (kg/yr)",
+    title = "Estimated MSY compared to True MSY - Informative Priors"
+  ) +
+  theme(text = element_text(family = "serif", size = 16),
+        axis.title.x = element_text(margin = margin(t = 7), size = 14),
+        axis.title.y = element_text(margin = margin(r = 10)))
+```
+
+# Model 3: Flexible Catchability 
+
+This model uses the sets.q function within JABBA to assign catchability to different CPUE indices. This subsets catchability into five different time periods. 
+
+```{r, include=FALSE}
+cpue_blocks <- scenB_cpue %>%
+  mutate(
+    cpue_1 = ifelse(year <= 10, cpue, NA),
+    cpue_2 = ifelse(year > 10 & year <= 20, cpue, NA),
+    cpue_3 = ifelse(year > 20 & year <= 30, cpue, NA),
+    cpue_4 = ifelse(year > 30 & year <= 40, cpue, NA),
+    cpue_5 = ifelse(year >= 41, cpue, NA)
+  ) %>%
+  select(year, cpue_1, cpue_2, cpue_3, cpue_4, cpue_5)
+
+#Model Fit
+scenB_input_flex <- build_jabba(
+  catch = scenB_catch,
+  cpue  = cpue_blocks,
+  assessment = "ScenB Informative",
+  scenario = "TestRun",
+  model.type = "Schaefer",
+  sigma.est = FALSE,
+  fixed.obsE = 0.1,
+  r.dist   = "lnorm",
+  r.prior  = c(0.35, 0.2),
+  K.dist   = "lnorm",
+  K.prior  = c(5000000, 0.2),
+  psi.dist  = "lnorm",
+  psi.prior = c(1, 0.2),
+  sets.q = c(1, 2, 3, 4, 5),
+  q1.dist  = "lnorm",
+  q1.prior = c(0.001, 1) 
+)
+
+scenB_run1_flex = fit_jabba(scenB_input_flex,quickmcmc=FALSE, ni = 100000, do.ppc = TRUE)
+```
+
+```{r, echo=FALSE}
+# Plots
+# Make individual plots
+jbplot_catcherror(scenB_run1_flex)
+jbplot_ppdist(scenB_run1_flex)
+jbplot_cpuefits(scenB_run1_flex)
+jbplot_logfits(scenB_run1_flex)
+
+# Plot Status Summary
+par(mfrow=c(3,2),mar = c(3.5, 3.5, 0.5, 0.1))
+jbplot_trj(scenB_run1_flex,type="B",add=T)
+jbplot_trj(scenB_run1_flex,type="F",add=T)
+jbplot_trj(scenB_run1_flex,type="BBmsy",add=T)
+jbplot_trj(scenB_run1_flex,type="FFmsy",add=T)
+jbplot_spphase(scenB_run1_flex,add=T)
+jbplot_kobe(scenB_run1_flex,add=T)
+```
+
+```{r, include=FALSE}
+#Evaluating MSY
+scenB_flex_MSY <- scenB_run1_flex$refpts_posterior$MSY
+MSY_summary_flex <- data.frame(
+  mean = mean(scenB_flex_MSY),
+  median = median(scenB_flex_MSY),
+  lwr = quantile(scenB_flex_MSY, 0.025),
+  upr = quantile(scenB_flex_MSY, 0.975)
+)
+MSY_summary_flex <- MSY_summary_flex %>%
+  mutate(
+    model = "Variable by CPUE"
+  )
+```
+
+# Model 4: 
+```{r, include=FALSE}
+RandomWalk <-cmdstan_model("RandomWalk.stan")
+
+scenB_data <- scenB_run1  %>%  
+  arrange(year) %>%
+  summarise(
+    C = list(catch_kg),
+    I = list(CPUE_obs)
+  )
+
+scenB_stan <- list(
+  N = length(scenB_data$C[[1]]),
+  C = as.vector(scenB_data$C[[1]]),
+  I = as.vector(scenB_data$I[[1]])
+)
+
+stanfit <- RandomWalk$sample(
+  data = scenB_stan,
+  parallel_chains = 4,
+  refresh = 0
+)
+```
+
+```{r, echo=FALSE}
+# Checking convergence diagnostics
+stanfit$summary(variables=c("r", "K", "sigma_q", "sigma_proc", "sigma_obs"))%>%kable(digits=2)
+
+# Density Plots
+standraws<-stanfit$draws(format="matrix")
+mcmc_dens_overlay(standraws, pars = c("r", "K", "sigma_q", "sigma_proc", "sigma_obs"))
+
+```
+
+```{r, include=FALSE}
+draws <- as_draws_df(stanfit$draws())
+table <- draws %>%
+  summarise(
+    mean = mean(MSY),
+    median = median(MSY),
+    lwr = quantile(MSY, 0.025),
+    upr = quantile(MSY, 0.975),
+  )
+
+table <- table %>%
+  mutate(
+    model = "Random Walk")
+```
+
+
+# Model Evaluation
+
+```{r, echo=FALSE}
+df <- bind_rows(MSY_summary_scenB_model1, MSY_summary_scenB_model2, MSY_summary_flex, table)
+
+df <- df %>% 
+  mutate(model = factor(model, levels = c("Uninformative Priors", "Informative Priors", "Variable by CPUE", "Random Walk")),
+        bias = mean - true_msy,
+        lwr_bias = lwr - true_msy, 
+        upr_bias = upr-true_msy,
+        rel_bias = (mean - true_msy) / true_msy,
+        covered = lwr <= true_msy & upr >= true_msy,
+        ci_width = upr - lwr)
+#MSY
+ggplot(aes(x = model, y = mean), data = df) +
+  geom_hline(yintercept = 656250, linetype = "dashed", color = "grey50", alpha = 0.9) +
+  geom_linerange(aes(ymin = lwr, ymax=upr), linewidth = 1.2) +
+  geom_point(aes(), size = 4) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    legend.position = ""
+  ) +
+  labs(
+    x = "Model",
+    y = "Estimated MSY (kg/yr)",
+    title = "Estimated MSY and Quantiles compared to True MSY"
+  ) +
+  theme(text = element_text(family = "serif", size = 16),
+        axis.title.x = element_text(margin = margin(t = 7), size = 14),
+        axis.title.y = element_text(margin = margin(r = 10)))
+
+#MSY Bias
+ggplot(aes(x = model, y = bias), data = df) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey50", alpha = 0.9) +
+  geom_linerange(aes(ymin = lwr_bias, ymax=upr_bias), linewidth = 1.2) +
+  geom_point(aes(), size = 4) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    legend.position = ""
+  ) +
+  labs(
+    x = "Model",
+    y = "Estimated MSY Bias (est MSY - true MSY)",
+    title = "Estimated MSY for MSY Bias"
+  ) +
+  theme(text = element_text(family = "serif", size = 16),
+        axis.title.x = element_text(margin = margin(t = 7), size = 14),
+        axis.title.y = element_text(margin = margin(r = 10)))
+```
+
+Each of the models has a confidence interval that contains the true MSY. The mean of the Variable by CPUE model is the closest to the true MSY. The variable by CPUE has the narrowest confidence interval. 
