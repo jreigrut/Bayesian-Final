@@ -530,7 +530,7 @@ MSY_summary_scenA_model2 <- data.frame(
 
 MSY_summary_scenA_model2 <- MSY_summary_scenA_model2 %>%
   mutate(
-    model = "Uninformative Priors - Scen A"
+    model = "Informative Priors - Scen A"
   )
 ```
 
@@ -750,13 +750,19 @@ table <- table %>%
 df <- bind_rows(MSY_summary_scenB_model1, MSY_summary_scenB_model2, MSY_summary_flex, table)
 
 df <- df %>% 
-  mutate(model = factor(model, levels = c("Uninformative Priors", "Informative Priors", "Variable by CPUE", "Random Walk")),
+  mutate(model = factor(model, levels = c("Uninformative Priors - Scen B", "Informative Priors - Scen B", "Variable by CPUE", "Random Walk")),
         bias = mean - true_msy,
         lwr_bias = lwr - true_msy, 
         upr_bias = upr-true_msy,
         rel_bias = (mean - true_msy) / true_msy,
         covered = lwr <= true_msy & upr >= true_msy,
-        ci_width = upr - lwr)
+        ci_width = upr - lwr,
+        model = case_when(
+            model == "Uninformative Priors - Scen B" ~ "Uninformative Priors",
+            model == "Informative Priors - Scen B" ~ "Informative Priors",
+            TRUE ~ model
+  ))
+  
 #MSY
 ggplot(aes(x = model, y = mean), data = df) +
   geom_hline(yintercept = 656250, linetype = "dashed", color = "grey50", alpha = 0.9) +
