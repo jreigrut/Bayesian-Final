@@ -300,6 +300,11 @@ In contrast,  Scenario B shows hyperstability. The relationship between CPUE and
 
 # Model 1: Standard Surplus Production 
 
+Uninformative priors were set using weak information about the system dynamics. These models encode priors that are biologically reasonable for the system but have wide standard deviation to allow for a large amount of variation from the set mean. 
+
+A prior of 0.4 with a standard deviaton of 1 was used for r. 0.4 is considered a reasonable estimation for the growth rate of a highly productive species, with true values falling between 0 and 1. 
+A prior of 4600000 was used for K as an estimation based on 8x the maximum catch, which tends to provide a reasonable estimate. A standard deviation of 2 allows for variance from this set mean. 
+
 ## Scenario A
 
 ```{r, include=FALSE}
@@ -455,21 +460,24 @@ MSY_summary_scenB_model1 <- MSY_summary_scenB_model1 %>%
   )
 ```
 
+## Model Comparison 
+
 ```{r}
 model1 <- bind_rows(MSY_summary_scenA_model1, MSY_summary_scenB_model1)
+
 model1 <- model1 %>% 
-  mutate(model = factor(model),
-        bias = mean - true_msy,
-        lwr_bias = lwr - true_msy, 
-        upr_bias = upr-true_msy,
-        rel_bias = (mean - true_msy) / true_msy,
-        covered = lwr <= true_msy & upr >= true_msy,
-        ci_width = upr - lwr)
+  mutate(
+        bias = meanMSY - true_msy,
+        lwr_bias = lwrMSY - true_msy, 
+        upr_bias = uprMSY-true_msy,
+        rel_bias = (meanMSY - true_msy) / true_msy,
+        covered = lwrMSY <= true_msy & uprMSY >= true_msy,
+        ci_width = uprMSY - lwrMSY)
 
 #MSY
-ggplot(aes(x = model, y = mean), data = model1) +
+ggplot(aes(x = model, y = meanMSY), data = model1) +
   geom_hline(yintercept = 656250, linetype = "dashed", color = "grey50", alpha = 0.9) +
-  geom_linerange(aes(ymin = lwr, ymax=upr), linewidth = 1.2) +
+  geom_linerange(aes(ymin = lwrMSY, ymax=uprMSY), linewidth = 1.2) +
   geom_point(aes(), size = 4) +
   theme_bw() +
   theme(
@@ -484,9 +492,51 @@ ggplot(aes(x = model, y = mean), data = model1) +
   theme(text = element_text(family = "serif", size = 16),
         axis.title.x = element_text(margin = margin(t = 7), size = 14),
         axis.title.y = element_text(margin = margin(r = 10)))
+
+#K
+ggplot(aes(x = model, y = mean_K), data = model1) +
+  geom_hline(yintercept = 7500000, linetype = "dashed", color = "grey50", alpha = 0.9) +
+  geom_linerange(aes(ymin = lwr_K, ymax=upr_K), linewidth = 1.2) +
+  geom_point(aes(), size = 4) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    legend.position = ""
+  ) +
+  labs(
+    x = "Model",
+    y = "Estimated K (kg)",
+    title = "Estimated K compared to True K"
+  ) +
+  theme(text = element_text(family = "serif", size = 16),
+        axis.title.x = element_text(margin = margin(t = 7), size = 14),
+        axis.title.y = element_text(margin = margin(r = 10)))
+
+#r
+ggplot(aes(x = model, y = mean_r), data = model1) +
+  geom_hline(yintercept = 0.35, linetype = "dashed", color = "grey50", alpha = 0.9) +
+  geom_linerange(aes(ymin = lwr_r, ymax=upr_r), linewidth = 1.2) +
+  geom_point(aes(), size = 4) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    legend.position = ""
+  ) +
+  labs(
+    x = "Model",
+    y = "Estimated r (kg/yr)",
+    title = "Estimated r compared to True r"
+  ) +
+  theme(text = element_text(family = "serif", size = 16),
+        axis.title.x = element_text(margin = margin(t = 7), size = 14),
+        axis.title.y = element_text(margin = margin(r = 10)))
+
 ```
+Uninformative priors do not produce highly accurate posterior coefficient estimates in either Scen A or Scen B. In Scen A, only the true mean MSY is contained in the range of the credible interval. However, the CI is very broad, as the priors are too broad to constrain uncertainty. Overarchingly, the posterior estimates are more accurate in Scen A than in Scen B, however, given the means, both models risk overharvest with estimated MSY values that are greater than true MSY. 
 
 # Model 2: Standard Surplus Production + Informative Priors
+
+This scenario imitates a fishery in which there is greater biological certainty regarding the true r and K values. In this, the values of r and K are centered at their true value in the simulation, with reduced variation given in the standard deviation. 
 
 ## Scenario A
 
@@ -503,7 +553,7 @@ scenA_input2 <- build_jabba(
   r.dist   = "lnorm",
   r.prior  = c(0.35, 0.2),
   K.dist   = "lnorm",
-  K.prior  = c(5000000, 0.2),
+  K.prior  = c(7500000, 0.2),
   psi.dist  = "lnorm",
   psi.prior = c(1, 0.2),
   q1.dist  = "lnorm",
@@ -530,12 +580,13 @@ jbplot_trj(scenA_run1_model2,type="FFmsy",add=T)
 jbplot_spphase(scenA_run1_model2,add=T)
 jbplot_kobe(scenA_run1_model2,add=T)
 ```
+
 ```{r, include=FALSE}
 scenA_model2_MSY <- scenA_run1_model2$refpts_posterior$MSY
 scenA_model2_K <- scenA_run1_model2$pars_posterior$K
 scenA_model2_r <- scenA_run1_model2$pars_posterior$r
 
-MSY_summary_model2 <- data.frame(
+MSY_summary_scenA_model2 <- data.frame(
   meanMSY = mean(scenA_model2_MSY),
   lwrMSY = quantile(scenA_model2_MSY, 0.025),
   uprMSY = quantile(scenA_model2_MSY, 0.975),
@@ -568,7 +619,7 @@ scenB_input2 <- build_jabba(
   r.dist   = "lnorm",
   r.prior  = c(0.35, 0.2),
   K.dist   = "lnorm",
-  K.prior  = c(5000000, 0.2),
+  K.prior  = c(7500000, 0.2),
   psi.dist  = "lnorm",
   psi.prior = c(1, 0.2),
   q1.dist  = "lnorm",
@@ -619,21 +670,24 @@ MSY_summary_scenB_model2 <- MSY_summary_scenB_model2 %>%
   )
 ```
 
+## Model Comparison 
+
 ```{r}
 model2 <- bind_rows(MSY_summary_scenA_model2, MSY_summary_scenB_model2)
+
 model2 <- model2 %>% 
-  mutate(model = factor(model),
-        bias = mean - true_msy,
-        lwr_bias = lwr - true_msy, 
-        upr_bias = upr-true_msy,
-        rel_bias = (mean - true_msy) / true_msy,
-        covered = lwr <= true_msy & upr >= true_msy,
-        ci_width = upr - lwr)
+  mutate(
+        bias = meanMSY - true_msy,
+        lwr_bias = lwrMSY - true_msy, 
+        upr_bias = uprMSY-true_msy,
+        rel_bias = (meanMSY - true_msy) / true_msy,
+        covered = lwrMSY <= true_msy & uprMSY >= true_msy,
+        ci_width = uprMSY - lwrMSY)
 
 #MSY
-ggplot(aes(x = model, y = mean), data = model2) +
+ggplot(aes(x = model, y = meanMSY), data = model2) +
   geom_hline(yintercept = 656250, linetype = "dashed", color = "grey50", alpha = 0.9) +
-  geom_linerange(aes(ymin = lwr, ymax=upr), linewidth = 1.2) +
+  geom_linerange(aes(ymin = lwrMSY, ymax=uprMSY), linewidth = 1.2) +
   geom_point(aes(), size = 4) +
   theme_bw() +
   theme(
@@ -648,7 +702,48 @@ ggplot(aes(x = model, y = mean), data = model2) +
   theme(text = element_text(family = "serif", size = 16),
         axis.title.x = element_text(margin = margin(t = 7), size = 14),
         axis.title.y = element_text(margin = margin(r = 10)))
+
+#K
+ggplot(aes(x = model, y = mean_K), data = model2) +
+  geom_hline(yintercept = 7500000, linetype = "dashed", color = "grey50", alpha = 0.9) +
+  geom_linerange(aes(ymin = lwr_K, ymax=upr_K), linewidth = 1.2) +
+  geom_point(aes(), size = 4) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    legend.position = ""
+  ) +
+  labs(
+    x = "Model",
+    y = "Estimated K (kg)",
+    title = "Estimated K compared to True K"
+  ) +
+  theme(text = element_text(family = "serif", size = 16),
+        axis.title.x = element_text(margin = margin(t = 7), size = 14),
+        axis.title.y = element_text(margin = margin(r = 10)))
+
+#r
+ggplot(aes(x = model, y = mean_r), data = model2) +
+  geom_hline(yintercept = 0.35, linetype = "dashed", color = "grey50", alpha = 0.9) +
+  geom_linerange(aes(ymin = lwr_r, ymax=upr_r), linewidth = 1.2) +
+  geom_point(aes(), size = 4) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    legend.position = ""
+  ) +
+  labs(
+    x = "Model",
+    y = "Estimated r (kg/yr)",
+    title = "Estimated r compared to True r"
+  ) +
+  theme(text = element_text(family = "serif", size = 16),
+        axis.title.x = element_text(margin = margin(t = 7), size = 14),
+        axis.title.y = element_text(margin = margin(r = 10)))
+
 ```
+
+Both models show posterior estimates for MSY, K, and r that contain the true value. The mean of each of these values is closer to the true value in Scen A than in Scen B, which is to be expected. Additionally, the addition of informative priors reduces the uncertainty in the posterior, as seen in the reduced with of the confidence interval. Both models risk some extent of overharvest, as their estimate of MSY is greater than true MSY. 
 
 # Model 3: Flexible Catchability 
 
@@ -677,7 +772,7 @@ scenB_input_flex <- build_jabba(
   r.dist   = "lnorm",
   r.prior  = c(0.35, 0.2),
   K.dist   = "lnorm",
-  K.prior  = c(5000000, 0.2),
+  K.prior  = c(7500000, 0.2),
   psi.dist  = "lnorm",
   psi.prior = c(1, 0.2),
   sets.q = c(1, 2, 3, 4, 5),
@@ -726,11 +821,14 @@ MSY_summary_flex <- data.frame(
 
 MSY_summary_flex <- MSY_summary_flex %>%
   mutate(
-    model = "Variable by CPUE"
+    model = "Piecewise"
   )
 ```
 
 # Model 4: 
+
+This model is a Stan model that encodes for a random walk on q in order to allow the model to adapt to variable fisher effiency, rather than forcing it to be constant or piecewise. 
+
 ```{r, include=FALSE}
 RandomWalk <-cmdstan_model("RandomWalk.stan")
 
@@ -805,7 +903,7 @@ df <- df %>%
             model == "Informative Priors - Scen B" ~ "Informative Priors",
             TRUE ~ model
   ),
-      model = factor(model, levels = c("Uninformative Priors", "Informative Priors", "Variable by CPUE", "Random Walk")),)
+      model = factor(model, levels = c("Uninformative Priors", "Informative Priors", "Piecewise", "Random Walk")),)
   
 #MSY
 ggplot(aes(x = model, y = meanMSY), data = df) +
@@ -827,7 +925,7 @@ ggplot(aes(x = model, y = meanMSY), data = df) +
         axis.title.y = element_text(margin = margin(r = 10)))
 
 #MSY Bias
-ggplot(aes(x = model, y = rel_bias_MSY), data = df) +
+a <- ggplot(aes(x = model, y = rel_bias_MSY), data = df) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "grey50", alpha = 0.9) +
   geom_linerange(aes(ymin = lwr_rel_bias_MSY, ymax= upr_rel_bias_MSY), linewidth = 1.0) +
   geom_point(aes(), size = 4) +
@@ -886,4 +984,4 @@ ggplot(aes(x = model, y = mean_r), data = df) +
 
 ```
 
-Each of the models has a confidence interval that contains the true MSY. 
+The Random Walk model and informative priors models appear to do the best at estimating MSY, accounting for K and r. While the piecewise model estimates MSY somewhat successfully it is severely biased in its estimate for K. 
