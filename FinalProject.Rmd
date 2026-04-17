@@ -324,11 +324,11 @@ scenA_input <- build_jabba(
   sigma.est = FALSE,
   fixed.obsE = 0.1,
   r.dist   = "lnorm",
-  r.prior  = c(0.4, 0.8),
+  r.prior  = c(0.4, 1),
   K.dist   = "lnorm",
-  K.prior  = c(4500000, 1.5),
+  K.prior  = c(4600000, 2),
   psi.dist  = "lnorm",
-  psi.prior = c(0.9, 0.3),
+  psi.prior = c(0.9, 0.6),
   q1.dist  = "lnorm",
   q1.prior = c(0.001, 1) 
 )
@@ -356,22 +356,25 @@ jbplot_kobe(scenA_run1_model,add=T)
 
 ```{r, include=FALSE}
 scenA_model_MSY <- scenA_run1_model$refpts_posterior$MSY
+scenA_model_K <- scenA_run1_model$pars_posterior$K
+scenA_model_r <- scenA_run1_model$pars_posterior$r
 
 MSY_summary_scenA_model1 <- data.frame(
-  mean = mean(scenA_model_MSY),
-  median = median(scenA_model_MSY),
-  lwr = quantile(scenA_model_MSY, 0.025),
-  upr = quantile(scenA_model_MSY, 0.975)
+  meanMSY = mean(scenA_model_MSY),
+  lwrMSY = quantile(scenA_model_MSY, 0.025),
+  uprMSY = quantile(scenA_model_MSY, 0.975),
+  mean_r = mean(scenA_model_r),
+  lwr_r = quantile(scenA_model_r, 0.025),
+  upr_r = quantile(scenA_model_r, 0.975),
+  mean_K = mean(scenA_model_K),
+  lwr_K = quantile(scenA_model_K, 0.025),
+  upr_K = quantile(scenA_model_K, 0.975)
 )
 
 MSY_summary_scenA_model1 <- MSY_summary_scenA_model1 %>%
   mutate(
     model = "Uninformative Priors - Scen A"
   )
-```
-
-```{r}
-summary(scenA_run1_model$mcmc)
 ```
 
 
@@ -399,11 +402,11 @@ scenB_input <- build_jabba(
   sigma.est = FALSE,
   fixed.obsE = 0.1,
   r.dist   = "lnorm",
-  r.prior  = c(0.4, 0.8),
+  r.prior  = c(0.4, 1),
   K.dist   = "lnorm",
-  K.prior  = c(4500000, 1.5),
+  K.prior  = c(4600000, 2),
   psi.dist  = "lnorm",
-  psi.prior = c(0.9, 0.3),
+  psi.prior = c(0.9, 0.6),
   q1.dist  = "lnorm",
   q1.prior = c(0.001, 1) 
 )
@@ -431,11 +434,19 @@ jbplot_kobe(scenB_run1_model,add=T)
 ```
 ```{r, include=FALSE}
 scenB_model_MSY <- scenB_run1_model$refpts_posterior$MSY
+scenB_model_K <- scenB_run1_model$pars_posterior$K
+scenB_model_r <- scenB_run1_model$pars_posterior$r
+
 MSY_summary_scenB_model1 <- data.frame(
-  mean = mean(scenB_model_MSY),
-  median = median(scenB_model_MSY),
-  lwr = quantile(scenB_model_MSY, 0.025),
-  upr = quantile(scenB_model_MSY, 0.975)
+  meanMSY = mean(scenB_model_MSY),
+  lwrMSY = quantile(scenB_model_MSY, 0.025),
+  uprMSY = quantile(scenB_model_MSY, 0.975),
+  mean_r = mean(scenB_model_r),
+  lwr_r = quantile(scenB_model_r, 0.025),
+  upr_r = quantile(scenB_model_r, 0.975),
+  mean_K = mean(scenB_model_K),
+  lwr_K = quantile(scenB_model_K, 0.025),
+  upr_K = quantile(scenB_model_K, 0.975)
 )
 
 MSY_summary_scenB_model1 <- MSY_summary_scenB_model1 %>%
@@ -521,11 +532,19 @@ jbplot_kobe(scenA_run1_model2,add=T)
 ```
 ```{r, include=FALSE}
 scenA_model2_MSY <- scenA_run1_model2$refpts_posterior$MSY
-MSY_summary_scenA_model2 <- data.frame(
-  mean = mean(scenA_model2_MSY),
-  median = median(scenA_model2_MSY),
-  lwr = quantile(scenA_model2_MSY, 0.025),
-  upr = quantile(scenA_model2_MSY, 0.975)
+scenA_model2_K <- scenA_run1_model2$pars_posterior$K
+scenA_model2_r <- scenA_run1_model2$pars_posterior$r
+
+MSY_summary_model2 <- data.frame(
+  meanMSY = mean(scenA_model2_MSY),
+  lwrMSY = quantile(scenA_model2_MSY, 0.025),
+  uprMSY = quantile(scenA_model2_MSY, 0.975),
+  mean_r = mean(scenA_model2_r),
+  lwr_r = quantile(scenA_model2_r, 0.025),
+  upr_r = quantile(scenA_model2_r, 0.975),
+  mean_K = mean(scenA_model2_K),
+  lwr_K = quantile(scenA_model2_K, 0.025),
+  upr_K = quantile(scenA_model2_K, 0.975)
 )
 
 MSY_summary_scenA_model2 <- MSY_summary_scenA_model2 %>%
@@ -579,11 +598,19 @@ jbplot_kobe(scenB_run1_model2,add=T)
 
 ```{r, include=FALSE}
 scenB_model2_MSY <- scenB_run1_model2$refpts_posterior$MSY
+scenB_model2_K <- scenB_run1_model2$pars_posterior$K
+scenB_model2_r <- scenB_run1_model2$pars_posterior$r
+
 MSY_summary_scenB_model2 <- data.frame(
-  mean = mean(scenB_model2_MSY),
-  median = median(scenB_model2_MSY),
-  lwr = quantile(scenB_model2_MSY, 0.025),
-  upr = quantile(scenB_model2_MSY, 0.975)
+  meanMSY = mean(scenB_model2_MSY),
+  lwrMSY = quantile(scenB_model2_MSY, 0.025),
+  uprMSY = quantile(scenB_model2_MSY, 0.975),
+  mean_r = mean(scenB_model2_r),
+  lwr_r = quantile(scenB_model2_r, 0.025),
+  upr_r = quantile(scenB_model2_r, 0.975),
+  mean_K = mean(scenB_model2_K),
+  lwr_K = quantile(scenB_model2_K, 0.025),
+  upr_K = quantile(scenB_model2_K, 0.975)
 )
 
 MSY_summary_scenB_model2 <- MSY_summary_scenB_model2 %>%
@@ -682,12 +709,21 @@ jbplot_kobe(scenB_run1_flex,add=T)
 ```{r, include=FALSE}
 #Evaluating MSY
 scenB_flex_MSY <- scenB_run1_flex$refpts_posterior$MSY
+scenB_flex_K <- scenB_run1_flex$pars_posterior$K
+scenB_flex_r <- scenB_run1_flex$pars_posterior$r
+
 MSY_summary_flex <- data.frame(
-  mean = mean(scenB_flex_MSY),
-  median = median(scenB_flex_MSY),
-  lwr = quantile(scenB_flex_MSY, 0.025),
-  upr = quantile(scenB_flex_MSY, 0.975)
+  meanMSY = mean(scenB_flex_MSY),
+  lwrMSY = quantile(scenB_flex_MSY, 0.025),
+  uprMSY = quantile(scenB_flex_MSY, 0.975),
+  mean_r = mean(scenB_flex_r),
+  lwr_r = quantile(scenB_flex_r, 0.025),
+  upr_r = quantile(scenB_flex_r, 0.975),
+  mean_K = mean(scenB_flex_K),
+  lwr_K = quantile(scenB_flex_K, 0.025),
+  upr_K = quantile(scenB_flex_K, 0.975)
 )
+
 MSY_summary_flex <- MSY_summary_flex %>%
   mutate(
     model = "Variable by CPUE"
@@ -732,10 +768,15 @@ mcmc_dens_overlay(standraws, pars = c("r", "K", "sigma_q", "sigma_proc", "sigma_
 draws <- as_draws_df(stanfit$draws())
 table <- draws %>%
   summarise(
-    mean = mean(MSY),
-    median = median(MSY),
-    lwr = quantile(MSY, 0.025),
-    upr = quantile(MSY, 0.975),
+    meanMSY = mean(MSY),
+    lwrMSY = quantile(MSY, 0.025),
+    uprMSY = quantile(MSY, 0.975),
+    mean_K= mean(K),
+    lwr_K = quantile(K, 0.025),
+    upr_K = quantile(K, 0.975),
+    mean_r = mean(r),
+    lwr_r= quantile(r, 0.025),
+    upr_r= quantile(r, 0.975),
   )
 
 table <- table %>%
@@ -750,23 +791,26 @@ table <- table %>%
 df <- bind_rows(MSY_summary_scenB_model1, MSY_summary_scenB_model2, MSY_summary_flex, table)
 
 df <- df %>% 
-  mutate(model = factor(model, levels = c("Uninformative Priors - Scen B", "Informative Priors - Scen B", "Variable by CPUE", "Random Walk")),
-        bias = mean - true_msy,
-        lwr_bias = lwr - true_msy, 
-        upr_bias = upr-true_msy,
-        rel_bias = (mean - true_msy) / true_msy,
-        covered = lwr <= true_msy & upr >= true_msy,
-        ci_width = upr - lwr,
+  mutate(
+        MSYbias = meanMSY - true_msy,
+        lwr_bias_MSY = lwrMSY - true_msy, 
+        upr_bias_MSY = uprMSY-true_msy,
+        rel_bias_MSY = (meanMSY - true_msy) / true_msy,
+        lwr_rel_bias_MSY = lwr_bias_MSY/true_msy,
+        upr_rel_bias_MSY = upr_bias_MSY/true_msy,
+        covered = lwrMSY <= true_msy & uprMSY >= true_msy,
+        ci_widthMSY = uprMSY - lwrMSY,
         model = case_when(
             model == "Uninformative Priors - Scen B" ~ "Uninformative Priors",
             model == "Informative Priors - Scen B" ~ "Informative Priors",
             TRUE ~ model
-  ))
+  ),
+      model = factor(model, levels = c("Uninformative Priors", "Informative Priors", "Variable by CPUE", "Random Walk")),)
   
 #MSY
-ggplot(aes(x = model, y = mean), data = df) +
+ggplot(aes(x = model, y = meanMSY), data = df) +
   geom_hline(yintercept = 656250, linetype = "dashed", color = "grey50", alpha = 0.9) +
-  geom_linerange(aes(ymin = lwr, ymax=upr), linewidth = 1.2) +
+  geom_linerange(aes(ymin = lwrMSY, ymax=uprMSY), linewidth = 1.2) +
   geom_point(aes(), size = 4) +
   theme_bw() +
   theme(
@@ -776,16 +820,16 @@ ggplot(aes(x = model, y = mean), data = df) +
   labs(
     x = "Model",
     y = "Estimated MSY (kg/yr)",
-    title = "Estimated MSY and Quantiles compared to True MSY"
+    title = "Estimated MSY compared to True MSY"
   ) +
   theme(text = element_text(family = "serif", size = 16),
         axis.title.x = element_text(margin = margin(t = 7), size = 14),
         axis.title.y = element_text(margin = margin(r = 10)))
 
 #MSY Bias
-ggplot(aes(x = model, y = bias), data = df) +
+ggplot(aes(x = model, y = rel_bias_MSY), data = df) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "grey50", alpha = 0.9) +
-  geom_linerange(aes(ymin = lwr_bias, ymax=upr_bias), linewidth = 1.2) +
+  geom_linerange(aes(ymin = lwr_rel_bias_MSY, ymax= upr_rel_bias_MSY), linewidth = 1.0) +
   geom_point(aes(), size = 4) +
   theme_bw() +
   theme(
@@ -794,12 +838,52 @@ ggplot(aes(x = model, y = bias), data = df) +
   ) +
   labs(
     x = "Model",
-    y = "Estimated MSY Bias (est MSY - true MSY)",
+    y = "Estimated MSY Bias (est MSY - true MSY)/true MSY",
     title = "Estimated MSY for MSY Bias"
   ) +
   theme(text = element_text(family = "serif", size = 16),
         axis.title.x = element_text(margin = margin(t = 7), size = 14),
         axis.title.y = element_text(margin = margin(r = 10)))
+
+#K
+ggplot(aes(x = model, y = mean_K), data = df) +
+  geom_hline(yintercept = 7500000, linetype = "dashed", color = "grey50", alpha = 0.9) +
+  geom_linerange(aes(ymin = lwr_K, ymax=upr_K), linewidth = 1.2) +
+  geom_point(aes(), size = 4) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    legend.position = ""
+  ) +
+  labs(
+    x = "Model",
+    y = "Estimated K (kg)",
+    title = "Estimated K compared to True K"
+  ) +
+  theme(text = element_text(family = "serif", size = 16),
+        axis.title.x = element_text(margin = margin(t = 7), size = 14),
+        axis.title.y = element_text(margin = margin(r = 10)))
+
+#r
+ggplot(aes(x = model, y = mean_r), data = df) +
+  geom_hline(yintercept = 0.35, linetype = "dashed", color = "grey50", alpha = 0.9) +
+  geom_linerange(aes(ymin = lwr_r, ymax=upr_r), linewidth = 1.2) +
+  geom_point(aes(), size = 4) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    legend.position = ""
+  ) +
+  labs(
+    x = "Model",
+    y = "Estimated r (kg/yr)",
+    title = "Estimated r compared to True r"
+  ) +
+  theme(text = element_text(family = "serif", size = 16),
+        axis.title.x = element_text(margin = margin(t = 7), size = 14),
+        axis.title.y = element_text(margin = margin(r = 10)))
+
+
 ```
 
-Each of the models has a confidence interval that contains the true MSY. The mean of the Variable by CPUE model is the closest to the true MSY. The variable by CPUE has the narrowest confidence interval. 
+Each of the models has a confidence interval that contains the true MSY. 
