@@ -477,9 +477,9 @@ model1 <- model1 %>%
         ci_width = uprMSY - lwrMSY)
 
 #MSY
-ggplot(aes(x = model, y = bias), data = model1) +
+ggplot(aes(x = model, y = meanMSY), data = model1) +
   geom_hline(yintercept = 557812.5, linetype = "dashed", color = "grey50", alpha = 0.9) +
-  geom_linerange(aes(ymin = lwr_bias, ymax=upr_bias), linewidth = 1.2) +
+  geom_linerange(aes(ymin = lwrMSY, ymax=uprMSY), linewidth = 1.2) +
   geom_point(aes(), size = 4) +
   theme_bw() +
   theme(
@@ -534,7 +534,7 @@ ggplot(aes(x = model, y = mean_r), data = model1) +
         axis.title.y = element_text(margin = margin(r = 10)))
 
 ```
-Uninformative priors do not produce highly accurate posterior coefficient estimates in either Scen A or Scen B. In Scen A, only the true mean MSY is contained in the range of the credible interval. However, the CI is very broad, as the priors are too broad to constrain uncertainty. Overarchingly, the posterior estimates are more accurate in Scen A than in Scen B, however, given the means, both models risk overharvest with estimated MSY values that are greater than true MSY. 
+Uninformative priors do not produce highly accurate posterior coefficient estimates in either Scen A or Scen B. In Scen B, only the true mean MSY is contained in the range of the credible interval. However, the CI is very broad, as the priors are too broad to constrain uncertainty. Overarchingly, the posterior estimates are more accurate in Scen A than in Scen B, however, given the means, both models risk overharvest with estimated MSY values that are greater than true MSY. 
 
 # Model 2: Standard Surplus Production + Informative Priors
 
@@ -913,11 +913,11 @@ stanfit_constant <- Constant$sample(
 
 ```{r, echo=FALSE}
 # Checking convergence diagnostics
-stanfit_constant$summary(variables=c("r", "K", "sigma_q", "sigma_proc", "sigma_obs"))%>%kable(digits=2)
+stanfit_constant$summary(variables=c("r", "K", "sigma_proc", "sigma_obs"))%>%kable(digits=2)
 
 # Density Plots
 standraws_constant<-stanfit_constant$draws(format="matrix")
-mcmc_dens_overlay(standraws_constant, pars = c("r", "K", "sigma_q", "sigma_proc", "sigma_obs"))
+mcmc_dens_overlay(standraws_constant, pars = c("r", "K", "sigma_proc", "sigma_obs"))
 
 #PPC
 P <- stanfit_constant$draws("P", format = "matrix")
@@ -936,6 +936,7 @@ ppc_intervals(y = B_obs, yrep = B_rep[1:100, ]) +
   ggtitle("PPC: constant q — biomass timeseries")
 
 ppc_intervals(y = I_obs, yrep = I_rep[1:100, ]) +
+  ylim(0, 10) +
   ggtitle("PPC: constant q — CPUE timeseries")
 ```
 
@@ -1063,7 +1064,8 @@ waicTable<-data.frame(Model=c("Constant q","Random walk q"),
                       LOOIC=c(looicConstant$estimates["looic","Estimate"],
                               looicRandom$estimates["looic","Estimate"]))
 
-waicTable %>% kable(digits=2)
+kable(waicTable) %>%
+  kable_styling(bootstrap_options = "striped")
 ```
 
 Comparing the random walk and constant q Stan models using WAIC and LOOIC, the random walk model is preferred. This indicates that the random walk on q improves the predictive performance of a model when fitting to data that has adaptive fisher behavior. 
