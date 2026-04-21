@@ -18,7 +18,8 @@ pacman::p_load(
   ggmcmc,
   bayesplot, 
   posterior,
-  kableExtra)
+  kableExtra,
+  loo)
 options(kableExtra.auto_format = FALSE)
 ```
 
@@ -61,18 +62,19 @@ In Scenerio B - fishers use POSEIDON's adaptive explore-exploit-imitate algorith
 
 The constant parameters of both simulations are:
 
-$K = 3000$ (max fish per cell) * 2500 cells_sq
-$K = 7500000$ fish in the system
+$K = 3000$ (max fish per cell) * (2500 cells_sq * 0.85 habitable)
+$K = 6375000$ fish in the system
 
 $r = 0.35$
 
 $q = 0.002$
 
-```{r, include=FALSE}
-true_msy <- 0.35 * 7500000 / 4
-```
+$MSY = rK/4$
 
-These parameters result in a $MSY_{true} = 656,250$
+```{r, include=FALSE}
+true_msy <- 0.35 * 6375000 / 4
+```
+These parameters result in a $MSY_{true} = 557,812$
 
 
 Fleet size  = 100
@@ -462,7 +464,7 @@ MSY_summary_scenB_model1 <- MSY_summary_scenB_model1 %>%
 
 ## Model Comparison 
 
-```{r}
+```{r, echo=FALSE}
 model1 <- bind_rows(MSY_summary_scenA_model1, MSY_summary_scenB_model1)
 
 model1 <- model1 %>% 
@@ -475,9 +477,9 @@ model1 <- model1 %>%
         ci_width = uprMSY - lwrMSY)
 
 #MSY
-ggplot(aes(x = model, y = meanMSY), data = model1) +
-  geom_hline(yintercept = 656250, linetype = "dashed", color = "grey50", alpha = 0.9) +
-  geom_linerange(aes(ymin = lwrMSY, ymax=uprMSY), linewidth = 1.2) +
+ggplot(aes(x = model, y = bias), data = model1) +
+  geom_hline(yintercept = 557812.5, linetype = "dashed", color = "grey50", alpha = 0.9) +
+  geom_linerange(aes(ymin = lwr_bias, ymax=upr_bias), linewidth = 1.2) +
   geom_point(aes(), size = 4) +
   theme_bw() +
   theme(
@@ -495,7 +497,7 @@ ggplot(aes(x = model, y = meanMSY), data = model1) +
 
 #K
 ggplot(aes(x = model, y = mean_K), data = model1) +
-  geom_hline(yintercept = 7500000, linetype = "dashed", color = "grey50", alpha = 0.9) +
+  geom_hline(yintercept = 6375000, linetype = "dashed", color = "grey50", alpha = 0.9) +
   geom_linerange(aes(ymin = lwr_K, ymax=upr_K), linewidth = 1.2) +
   geom_point(aes(), size = 4) +
   theme_bw() +
@@ -553,7 +555,7 @@ scenA_input2 <- build_jabba(
   r.dist   = "lnorm",
   r.prior  = c(0.35, 0.2),
   K.dist   = "lnorm",
-  K.prior  = c(7500000, 0.2),
+  K.prior  = c(6375000, 0.2),
   psi.dist  = "lnorm",
   psi.prior = c(1, 0.2),
   q1.dist  = "lnorm",
@@ -619,7 +621,7 @@ scenB_input2 <- build_jabba(
   r.dist   = "lnorm",
   r.prior  = c(0.35, 0.2),
   K.dist   = "lnorm",
-  K.prior  = c(7500000, 0.2),
+  K.prior  = c(6375000, 0.2),
   psi.dist  = "lnorm",
   psi.prior = c(1, 0.2),
   q1.dist  = "lnorm",
@@ -672,7 +674,7 @@ MSY_summary_scenB_model2 <- MSY_summary_scenB_model2 %>%
 
 ## Model Comparison 
 
-```{r}
+```{r, echo=FALSE}
 model2 <- bind_rows(MSY_summary_scenA_model2, MSY_summary_scenB_model2)
 
 model2 <- model2 %>% 
@@ -686,7 +688,7 @@ model2 <- model2 %>%
 
 #MSY
 ggplot(aes(x = model, y = meanMSY), data = model2) +
-  geom_hline(yintercept = 656250, linetype = "dashed", color = "grey50", alpha = 0.9) +
+  geom_hline(yintercept = 557812.5, linetype = "dashed", color = "grey50", alpha = 0.9) +
   geom_linerange(aes(ymin = lwrMSY, ymax=uprMSY), linewidth = 1.2) +
   geom_point(aes(), size = 4) +
   theme_bw() +
@@ -705,7 +707,7 @@ ggplot(aes(x = model, y = meanMSY), data = model2) +
 
 #K
 ggplot(aes(x = model, y = mean_K), data = model2) +
-  geom_hline(yintercept = 7500000, linetype = "dashed", color = "grey50", alpha = 0.9) +
+  geom_hline(yintercept = 6375000, linetype = "dashed", color = "grey50", alpha = 0.9) +
   geom_linerange(aes(ymin = lwr_K, ymax=upr_K), linewidth = 1.2) +
   geom_point(aes(), size = 4) +
   theme_bw() +
@@ -772,7 +774,7 @@ scenB_input_flex <- build_jabba(
   r.dist   = "lnorm",
   r.prior  = c(0.35, 0.2),
   K.dist   = "lnorm",
-  K.prior  = c(7500000, 0.2),
+  K.prior  = c(6375000, 0.2),
   psi.dist  = "lnorm",
   psi.prior = c(1, 0.2),
   sets.q = c(1, 2, 3, 4, 5),
@@ -862,6 +864,81 @@ mcmc_dens_overlay(standraws, pars = c("r", "K", "sigma_q", "sigma_proc", "sigma_
 
 ```
 
+```{r, echo=FALSE, warning=FALSE}
+#PPC
+P <- stanfit$draws("P", format = "matrix")
+K <- stanfit$draws("K", format = "matrix")
+K <- as.numeric(K)
+B_rep <- P * K
+
+
+I_rep <- stanfit$draws("Irep", format = "matrix") 
+
+N     <- length(scenB_run1$CPUE_true)
+I_obs <- scenB_run1$CPUE_true
+B_obs <- scenB_run1$biomass
+
+ppc_intervals(y = B_obs, yrep = B_rep[1:100, ]) +
+  ggtitle("PPC: random walk q — biomass timeseries")
+
+ppc_intervals(y = I_obs, yrep = I_rep[1:100, ]) +
+  ylim(0, 10) +
+  ggtitle("PPC: random walk q — CPUE timeseries")
+
+```
+
+```{r, include=FALSE}
+Constant <-cmdstan_model("Constant.stan")
+
+scenB_data <- scenB_run1  %>%  
+  arrange(year) %>%
+  summarise(
+    C = list(catch_kg),
+    I = list(CPUE_obs)
+  )
+
+scenB_stan <- list(
+  N = length(scenB_data$C[[1]]),
+  C = as.vector(scenB_data$C[[1]]),
+  I = as.vector(scenB_data$I[[1]])
+)
+
+stanfit_constant <- Constant$sample(
+  data = scenB_stan,
+  parallel_chains = 4,
+  refresh = 0
+)
+
+```
+
+```{r, echo=FALSE}
+# Checking convergence diagnostics
+stanfit_constant$summary(variables=c("r", "K", "sigma_q", "sigma_proc", "sigma_obs"))%>%kable(digits=2)
+
+# Density Plots
+standraws_constant<-stanfit_constant$draws(format="matrix")
+mcmc_dens_overlay(standraws_constant, pars = c("r", "K", "sigma_q", "sigma_proc", "sigma_obs"))
+
+#PPC
+P <- stanfit_constant$draws("P", format = "matrix")
+K <- stanfit_constant$draws("K", format = "matrix")
+K <- as.numeric(K)
+B_rep <- P * K
+
+
+I_rep <- stanfit_constant$draws("Irep", format = "matrix") 
+
+N     <- length(scenB_run1$CPUE_true)
+I_obs <- scenB_run1$CPUE_true
+B_obs <- scenB_run1$biomass
+
+ppc_intervals(y = B_obs, yrep = B_rep[1:100, ]) +
+  ggtitle("PPC: constant q — biomass timeseries")
+
+ppc_intervals(y = I_obs, yrep = I_rep[1:100, ]) +
+  ggtitle("PPC: constant q — CPUE timeseries")
+```
+
 ```{r, include=FALSE}
 draws <- as_draws_df(stanfit$draws())
 table <- draws %>%
@@ -880,8 +957,116 @@ table <- draws %>%
 table <- table %>%
   mutate(
     model = "Random Walk")
+
+draws_constant <- as_draws_df(stanfit_constant$draws())
+table_constant <- draws_constant %>%
+  summarise(
+    meanMSY = mean(MSY),
+    lwrMSY = quantile(MSY, 0.025),
+    uprMSY = quantile(MSY, 0.975),
+    mean_K= mean(K),
+    lwr_K = quantile(K, 0.025),
+    upr_K = quantile(K, 0.975),
+    mean_r = mean(r),
+    lwr_r= quantile(r, 0.025),
+    upr_r= quantile(r, 0.975),
+  )
+
+table_constant <- table_constant %>%
+  mutate(
+    model = "Constant")
 ```
 
+```{r, echo=FALSE}
+model3 <- bind_rows(table, table_constant)
+
+model3 <- model3 %>% 
+  mutate(
+        bias = meanMSY - true_msy,
+        lwr_bias = lwrMSY - true_msy, 
+        upr_bias = uprMSY-true_msy,
+        rel_bias = (meanMSY - true_msy) / true_msy,
+        covered = lwrMSY <= true_msy & uprMSY >= true_msy,
+        ci_width = uprMSY - lwrMSY)
+
+#MSY
+ggplot(aes(x = model, y = meanMSY), data = model3) +
+  geom_hline(yintercept = 557812.5, linetype = "dashed", color = "grey50", alpha = 0.9) +
+  geom_linerange(aes(ymin = lwrMSY, ymax=uprMSY), linewidth = 1.2) +
+  geom_point(aes(), size = 4) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    legend.position = ""
+  ) +
+  labs(
+    x = "Model",
+    y = "Estimated MSY (kg/yr)",
+    title = "Estimated MSY compared to True MSY - Informative Priors"
+  ) +
+  theme(text = element_text(family = "serif", size = 16),
+        axis.title.x = element_text(margin = margin(t = 7), size = 14),
+        axis.title.y = element_text(margin = margin(r = 10)))
+
+#K
+ggplot(aes(x = model, y = mean_K), data = model3) +
+  geom_hline(yintercept = 6375000, linetype = "dashed", color = "grey50", alpha = 0.9) +
+  geom_linerange(aes(ymin = lwr_K, ymax=upr_K), linewidth = 1.2) +
+  geom_point(aes(), size = 4) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    legend.position = ""
+  ) +
+  labs(
+    x = "Model",
+    y = "Estimated K (kg)",
+    title = "Estimated K compared to True K"
+  ) +
+  theme(text = element_text(family = "serif", size = 16),
+        axis.title.x = element_text(margin = margin(t = 7), size = 14),
+        axis.title.y = element_text(margin = margin(r = 10)))
+
+#r
+ggplot(aes(x = model, y = mean_r), data = model3) +
+  geom_hline(yintercept = 0.35, linetype = "dashed", color = "grey50", alpha = 0.9) +
+  geom_linerange(aes(ymin = lwr_r, ymax=upr_r), linewidth = 1.2) +
+  geom_point(aes(), size = 4) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    legend.position = ""
+  ) +
+  labs(
+    x = "Model",
+    y = "Estimated r (kg/yr)",
+    title = "Estimated r compared to True r"
+  ) +
+  theme(text = element_text(family = "serif", size = 16),
+        axis.title.x = element_text(margin = margin(t = 7), size = 14),
+        axis.title.y = element_text(margin = margin(r = 10)))
+
+```
+
+```{r, echo=FALSE, warning=FALSE}
+loglikConstant<-stanfit_constant$draws(format="matrix",variables="log_lik")
+loglikRandom<-stanfit$draws(format="matrix",variables="log_lik")
+
+waicConstant<-waic(loglikConstant)
+looicConstant<-loo(loglikConstant)
+waicRandom<-waic(loglikRandom)
+looicRandom<-loo(loglikRandom)
+
+waicTable<-data.frame(Model=c("Constant q","Random walk q"),
+                      WAIC=c(waicConstant$estimates["waic","Estimate"],
+                             waicRandom$estimates["waic","Estimate"]),
+                      LOOIC=c(looicConstant$estimates["looic","Estimate"],
+                              looicRandom$estimates["looic","Estimate"]))
+
+waicTable %>% kable(digits=2)
+```
+
+Comparing the random walk and constant q Stan models using WAIC and LOOIC, the random walk model is preferred. This indicates that the random walk on q improves the predictive performance of a model when fitting to data that has adaptive fisher behavior. 
 
 # Model Evaluation
 
@@ -907,7 +1092,7 @@ df <- df %>%
   
 #MSY
 ggplot(aes(x = model, y = meanMSY), data = df) +
-  geom_hline(yintercept = 656250, linetype = "dashed", color = "grey50", alpha = 0.9) +
+  geom_hline(yintercept = 557812.5, linetype = "dashed", color = "grey50", alpha = 0.9) +
   geom_linerange(aes(ymin = lwrMSY, ymax=uprMSY), linewidth = 1.2) +
   geom_point(aes(), size = 4) +
   theme_bw() +
@@ -945,7 +1130,7 @@ a <- ggplot(aes(x = model, y = rel_bias_MSY), data = df) +
 
 #K
 ggplot(aes(x = model, y = mean_K), data = df) +
-  geom_hline(yintercept = 7500000, linetype = "dashed", color = "grey50", alpha = 0.9) +
+  geom_hline(yintercept = 6375000, linetype = "dashed", color = "grey50", alpha = 0.9) +
   geom_linerange(aes(ymin = lwr_K, ymax=upr_K), linewidth = 1.2) +
   geom_point(aes(), size = 4) +
   theme_bw() +
@@ -985,3 +1170,9 @@ ggplot(aes(x = model, y = mean_r), data = df) +
 ```
 
 The Random Walk model and informative priors models appear to do the best at estimating MSY, accounting for K and r. While the piecewise model estimates MSY somewhat successfully it is severely biased in its estimate for K. 
+
+Overarchingly, these results indicate that data that has a variable (rather than constant) q increases uncertainty when using standard methods for fisheries stock assessment. These have the potential to indicate that the stock is in better condition than it truly is and overestimate MSY, both of which may influence policy setting and result in overharvest. 
+
+The use of informative priors, that suggest a strong biological understanding of the fisheries system, work to combat this and decrease the uncertainty in posterior estimatates of stock parameters. Putting a random walk on q performs similarly in its ability to extract accurate estimates of MSY, but can be more time intensive to produce. 
+
+These show that it is necessary to consider both the behavior of fishers as well as biological parameters when conducting stock assessments. Given that fisheries policy utilizes levers (TAC, ITQs, etc.) that aim to target human behavior, an understanding of human behavior as well as fisheries parameters allows for decreased uncertainty and greater accuracy in resultant stock assessments. 

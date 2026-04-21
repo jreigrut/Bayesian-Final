@@ -47,17 +47,11 @@ model {
   // Priors
   K ~ lognormal(15, 0.5);  // conversion of priors from JABBA
   r ~ lognormal(-1.07, 0.2);  // conversion of priors from JABBA
-
+  q ~ lognormal(-6.91, 1);
+  
   sigma_proc ~ normal(0, 1);
   sigma_obs ~ normal(0, 1);
   sigma_q ~ normal(0, 0.2);   
-
-  // Initial q
-  log_q[1] ~ normal(log(0.001), 0.05); // hard anchor
-
-  // Random walk for q_t
-  for (t in 2:N)
-    log_q[t] ~ normal(log_q[t - 1], sigma_q);
 
   // State process
   P[1] ~ lognormal(-0.02, 0.198); // conversion of priors from JABBA
