@@ -1107,7 +1107,7 @@ ggplot(aes(x = model, y = meanMSY), data = df) +
     y = "Estimated MSY (kg/yr)",
     title = "Estimated MSY compared to True MSY"
   ) +
-  theme(text = element_text(family = "serif", size = 16),
+  theme(text = element_text(family = "serif", size = 12),
         axis.title.x = element_text(margin = margin(t = 7), size = 14),
         axis.title.y = element_text(margin = margin(r = 10)))
 
@@ -1126,7 +1126,7 @@ a <- ggplot(aes(x = model, y = rel_bias_MSY), data = df) +
     y = "Estimated MSY Bias (est MSY - true MSY)/true MSY",
     title = "Estimated MSY for MSY Bias"
   ) +
-  theme(text = element_text(family = "serif", size = 16),
+  theme(text = element_text(family = "serif", size = 12),
         axis.title.x = element_text(margin = margin(t = 7), size = 14),
         axis.title.y = element_text(margin = margin(r = 10)))
 
@@ -1145,7 +1145,7 @@ ggplot(aes(x = model, y = mean_K), data = df) +
     y = "Estimated K (kg)",
     title = "Estimated K compared to True K"
   ) +
-  theme(text = element_text(family = "serif", size = 16),
+  theme(text = element_text(family = "serif", size = 12),
         axis.title.x = element_text(margin = margin(t = 7), size = 14),
         axis.title.y = element_text(margin = margin(r = 10)))
 
@@ -1164,7 +1164,7 @@ ggplot(aes(x = model, y = mean_r), data = df) +
     y = "Estimated r (kg/yr)",
     title = "Estimated r compared to True r"
   ) +
-  theme(text = element_text(family = "serif", size = 16),
+  theme(text = element_text(family = "serif", size = 12),
         axis.title.x = element_text(margin = margin(t = 7), size = 14),
         axis.title.y = element_text(margin = margin(r = 10)))
 
