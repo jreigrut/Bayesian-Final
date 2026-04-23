@@ -9,8 +9,11 @@ parameters {
   real<lower=0> r;     // growth rate
 
   // Time-varying catchability
-  vector[N] log_q;              
-  real<lower=0> sigma_q;        
+
+  real log_q_bar;
+  vector[N] z_q;
+  real<lower=0> sigma_q;
+
 
   // Variances
   real<lower=0> sigma_proc;     
@@ -19,14 +22,23 @@ parameters {
   vector<lower=0.001, upper=2.0>[N] P;   // population process (latent)
 }
 
+
 transformed parameters {
+  vector[N] log_q;
   vector[N] q;
   vector[N] Pmed;
   vector[N] Imed;
 
+
   // Convert log_q → q
+
+  log_q[1] = log_q_bar + z_q[1] * sigma_q;
+  for (t in 2:N)
+    log_q[t] = log_q[t - 1] + z_q[t] * sigma_q;
+
   for (t in 1:N)
     q[t] = exp(log_q[t]);
+
 
   Pmed[1] = log(P[1]);    // log scale mean for first latent abundance
   for (t in 2:N) {
@@ -49,11 +61,13 @@ model {
   r ~ lognormal(-1.07, 0.2);  // conversion of priors from JABBA
 
   sigma_proc ~ normal(0, 1);
-  sigma_obs ~ normal(0, 1);
-  sigma_q ~ normal(0, 0.2);   
+  sigma_obs ~ normal(0, 0.1);
+  sigma_q ~ normal(0, 0.03);   
 
   // Initial q
-  log_q[1] ~ normal(log(0.001), 0.05); // hard anchor
+   log_q_bar ~ normal(-6.91, 0.5); // hard anchor
+   z_q ~ std_normal();
+
 
   // Random walk for q_t
   for (t in 2:N)
