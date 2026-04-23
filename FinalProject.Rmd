@@ -1,7 +1,7 @@
 ---
-title: "Final Project"
+title: "Surplus Production Models for Adaptive Fisher Behavior"
 author: "JD Reigrut"
-date: "2026-04-09"
+date: "2026-04-24"
 output: pdf_document
 ---
 
@@ -19,11 +19,14 @@ pacman::p_load(
   bayesplot, 
   posterior,
   kableExtra,
-  loo)
+  loo,
+  gridExtra,
+  patchwork,
+  gridGraphics)
 options(kableExtra.auto_format = FALSE)
 ```
 
-# Problem Definition 
+# **Introduction**
 
 A surplus production model is a simple population dynamics model used for fisheries stock assessment. The objective of a surplus production model is to estimate the Maximum Sustainable Yield (MSY) using limited data, to identify the optimum harvest effort that avoids depleting the stock. The equation for the surplus production model is:
 
@@ -52,7 +55,7 @@ With these two datasets, I will run six models – fitting Bayesian surplus prod
 
 4) Do Bayesian models that allow for flexible or time-varying catchability better recover true MSY under adaptive fishing behavior?
 
-# Simulation of Data #
+# **Methods**
 
 The POSEIDON model was used to simulate fishing scenerios with two different types of fisher behavior. These fisher simulation runs differ only in fisher targeting behavior, all else being held constant. 
 
@@ -98,13 +101,13 @@ Hold size = 200
 Each fisher has two information sharing 'friendships'
 
 
-### Scenerio A - Fixed behavioral probability 
+## Scenerio A - Fixed behavioral probability 
 
 Exploration probability = 0.95 (high)
 
 Imitation probability = 0.0 (no imitation)
 
-### Scenerio B - Adaptive behavioral probability 
+## Scenerio B - Adaptive behavioral probability 
 
 Exploration probability = 0.05 (low random exploration)
   Min = 0.01
@@ -112,13 +115,12 @@ Exploration probability = 0.05 (low random exploration)
 Imitation probability = 1.0 (high social imitation)
   Increment multiplier= 0.03 (learning speed)
   
-### Dataset 
+## Dataset 
 
-A simulation of 30 years was run for each scenario with the given parameters. 
+A simulation of 60 years was run for each scenario with the given parameters. The first 5 years were removed to drop potential trends arising from initialization and to remove the learning artifact in the Scenario B, retaining years 6-60 which were then re-indexed as 1-55. 
 
-Species biomass (kg), total catch (kg), average distance from port (km), average last trip hourly income ($), hours out, and effort were collected from the simulation. CPUE was calculated from total catch (kg) and effort. 
+Species biomass (kg), total catch (kg), average distance from port (km), average last trip hourly income ($), hours out, and effort were collected from the simulation. CPUE was calculated from total catch (kg) and effort. An 'observed' CPUE was calculated by adding adding lognormal (multiplicative) error to create realistic fisheries-style observation error. 
 
-Two runs with random seeds were conducted for each scenario. The first 5 years were removed to drop potential trends arising from initialization and to remove the learning artifact in the Scenario B. 
 
 ```{r, include=FALSE}
 # Combining datasets from POSIEDON csv outputs
@@ -250,6 +252,10 @@ scenB_run2 <- list(effort_scenB_run2, distance_scenB_run2, catchkg_scenB_run2, b
 scenB <- bind_rows(scenB_run1, scenB_run2)
 ```
 
+# **Results**
+
+## Preliminary Data Evaluation
+
 ```{r, echo=FALSE}
 #CPUE Plot
 ggplot() +
@@ -258,10 +264,11 @@ ggplot() +
     labs(title = "Observed CPUE over time",
          y = "CPUE", x = "Year") +
   theme_bw() +
-theme(text = element_text(family = "serif", size = 18),
+  theme(text = element_text(family = "serif", size = 18),
         axis.title.x = element_text(margin = margin(t = 7), size = 14),
         axis.title.y = element_text(margin = margin(r = 10)))
 ```
+
 Scenario A shows a steady decrease in CPUE over time. As a result of highly exploratory behavior, the decrease in biomass (seen below) is directly tied to a decrease in CPUE. 
 
 Scenario B shows an initial increase in CPUE given higher biomass and then declines more slowly than in Scenerio A. Adaptive behavior enables fishers to imitate and exploit centers of high biomass, leading to increased instability in CPUE as fishers find and deplete these centers. 
@@ -296,6 +303,7 @@ ggplot() +
         axis.title.y = element_text(margin = margin(r = 10)))
 
 ```
+
 Scenario A represents consistency with the assumption for a standard population surplus model. The relationship between CPUE and biomass creates a largely flat trend where CPUE decline is proportional with biomass decline over time. The trend indicates that a constant q assumption is largely valid. 
 
 In contrast,  Scenario B shows hyperstability. The relationship between CPUE and biomass is initially low due to learning restrictions, then increases despite decreasing biomass as a result of advantageous exploitation and imitation behavior. Spatial targeting results in a more volatile pattern as established previously. The trend indicates that a constant q assumption is not valid. 
@@ -308,6 +316,8 @@ A prior of 0.4 with a standard deviaton of 1 was used for r. 0.4 is considered a
 A prior of 4600000 was used for K as an estimation based on 8x the maximum catch, which tends to provide a reasonable estimate. A standard deviation of 2 allows for variance from this set mean. 
 
 ## Scenario A
+
+Application of the uninformative priors model to Scenario A (true constant q) using a JABBA Schaefer model
 
 ```{r, include=FALSE}
 #Model Fit
@@ -342,14 +352,20 @@ scenA_input <- build_jabba(
 
 scenA_run1_model = fit_jabba(scenA_input,quickmcmc=FALSE, ni = 100000)
 ```
+ 
 
-```{r, echo=FALSE}
+The posteior estimate shows a bimodal K which remains, even with increasing the number of iterations. The Kobe plot shows relative certainty that the true population is overfished and experiancing overfishing, in line with the decreasing CPUE and low biomass. 
+
+```{r, echo=FALSE,  message=FALSE, warning=FALSE, results='hide', fig.show='hold', fig.height=5}
 # Plots
 # Make individual plots
-jbplot_catcherror(scenA_run1_model)
+
 jbplot_ppdist(scenA_run1_model)
-jbplot_cpuefits(scenA_run1_model)
-jbplot_logfits(scenA_run1_model)
+
+par(mfrow=c(1,3),mar = c(3.5, 3.5, 0.5, 0.1))
+jbplot_catcherror(scenA_run1_model, add = T)
+jbplot_cpuefits(scenA_run1_model, add = T)
+jbplot_logfits(scenA_run1_model, add = T)
 
 # Plot Status Summary
 par(mfrow=c(3,2),mar = c(3.5, 3.5, 0.5, 0.1))
@@ -387,6 +403,8 @@ MSY_summary_scenA_model1 <- MSY_summary_scenA_model1 %>%
 
 ## Scenario B
 
+Application of the uninformative priors model to Scenario B (adaptive q) using a JABBA Schaefer model
+
 ```{r, include=FALSE}
 #Model Fit
 scenB_catch <- data.frame(
@@ -422,13 +440,17 @@ scenB_input <- build_jabba(
 scenB_run1_model = fit_jabba(scenB_input,quickmcmc=FALSE, ni = 100000)
 ```
 
-```{r, echo=FALSE}
+Priors show a bimodal K which remains, even with increasing the number of iterations. The Kobe plot shows a high level of uncertainty, emphasizing that uninformative priors may lack strength to form an accurate estimate of stock status. 
+
+```{r, echo=FALSE,  message=FALSE, warning=FALSE, results='hide', fig.height=5, fig.show='hold'}
 # Plots
-# Make individual plots
-jbplot_catcherror(scenB_run1_model)
 jbplot_ppdist(scenB_run1_model)
-jbplot_cpuefits(scenB_run1_model)
-jbplot_logfits(scenB_run1_model)
+
+# Make individual plots
+par(mfrow=c(1,3),mar = c(3.5, 3.5, 0.5, 0.1))
+jbplot_catcherror(scenB_run1_model, add = T)
+jbplot_cpuefits(scenB_run1_model, add = T)
+jbplot_logfits(scenB_run1_model, add = T)
 
 # Plot Status Summary
 par(mfrow=c(3,2),mar = c(3.5, 3.5, 0.5, 0.1))
@@ -439,6 +461,7 @@ jbplot_trj(scenB_run1_model,type="FFmsy",add=T)
 jbplot_spphase(scenB_run1_model,add=T)
 jbplot_kobe(scenB_run1_model,add=T)
 ```
+
 ```{r, include=FALSE}
 scenB_model_MSY <- scenB_run1_model$refpts_posterior$MSY
 scenB_model_K <- scenB_run1_model$pars_posterior$K
@@ -489,7 +512,7 @@ ggplot(aes(x = model, y = meanMSY), data = model1) +
   labs(
     x = "Model",
     y = "Estimated MSY (kg/yr)",
-    title = "Estimated MSY compared to True MSY - Uninformative Priors"
+    title = "Estimated MSY compared to True MSY"
   ) +
   theme(text = element_text(family = "serif", size = 16),
         axis.title.x = element_text(margin = margin(t = 7), size = 14),
@@ -534,7 +557,8 @@ ggplot(aes(x = model, y = mean_r), data = model1) +
         axis.title.y = element_text(margin = margin(r = 10)))
 
 ```
-Uninformative priors do not produce highly accurate posterior coefficient estimates in either Scen A or Scen B. In Scen B, only the true mean MSY is contained in the range of the credible interval. However, the CI is very broad, as the priors are too broad to constrain uncertainty. Overarchingly, the posterior estimates are more accurate in Scen A than in Scen B, however, given the means, both models risk overharvest with estimated MSY values that are greater than true MSY. 
+
+Uninformative priors do not produce highly accurate posterior coefficient estimates in either Scen A or Scen B. Both scenerios contain the true MSY within the CI. However, particulalry in ScenB, the CI is very broad, as the priors are too broad to constrain uncertainty. Overarchingly, the posterior estimates are more accurate in Scen A than in Scen B, however, given the means, both models risk overharvest with estimated MSY values that are greater than true MSY. 
 
 # Model 2: Standard Surplus Production + Informative Priors
 
@@ -565,13 +589,17 @@ scenA_input2 <- build_jabba(
 scenA_run1_model2 = fit_jabba(scenA_input2,quickmcmc=FALSE, ni = 100000)
 ```
 
-```{r, echo=FALSE}
+Prior fit for r and K is improved, though the posterior for K remains bimodal. Kobe plots show overfished stock, with potential for overfishing within the CI. 
+
+```{r, echo=FALSE,  message=FALSE, warning=FALSE, results='hide', fig.show='hold',  fig.height=5}
 # Plots
 # Make individual plots
-jbplot_catcherror(scenA_run1_model2)
 jbplot_ppdist(scenA_run1_model2)
-jbplot_cpuefits(scenA_run1_model2)
-jbplot_logfits(scenA_run1_model2)
+
+par(mfrow=c(1,3),mar = c(3.5, 3.5, 0.5, 0.1))
+jbplot_catcherror(scenA_run1_model2, add = T)
+jbplot_cpuefits(scenA_run1_model2, add = T)
+jbplot_logfits(scenA_run1_model2, add = T)
 
 # Plot Status Summary
 par(mfrow=c(3,2),mar = c(3.5, 3.5, 0.5, 0.1))
@@ -631,13 +659,17 @@ scenB_input2 <- build_jabba(
 scenB_run1_model2 = fit_jabba(scenB_input2,quickmcmc=FALSE, ni = 100000)
 ```
 
-```{r, echo=FALSE}
+Prior fit for r and K is improved, though the posterior for K remains bimodal. Kobe plots show a primarily not overfished nor overfishing stock, with a more reduced CI. 
+
+```{r, echo=FALSE,  message=FALSE, warning=FALSE, results='hide', fig.height=5, fig.show='hold'}
 # Plots
 # Make individual plots
-jbplot_catcherror(scenB_run1_model2)
 jbplot_ppdist(scenB_run1_model2)
-jbplot_cpuefits(scenB_run1_model2)
-jbplot_logfits(scenB_run1_model2)
+
+par(mfrow=c(1,3),mar = c(3.5, 3.5, 0.5, 0.1))
+jbplot_catcherror(scenB_run1_model2, add = T)
+jbplot_cpuefits(scenB_run1_model2, add = T)
+jbplot_logfits(scenB_run1_model2, add = T)
 
 # Plot Status Summary
 par(mfrow=c(3,2),mar = c(3.5, 3.5, 0.5, 0.1))
@@ -699,7 +731,7 @@ ggplot(aes(x = model, y = meanMSY), data = model2) +
   labs(
     x = "Model",
     y = "Estimated MSY (kg/yr)",
-    title = "Estimated MSY compared to True MSY - Informative Priors"
+    title = "Estimated MSY compared to True MSY"
   ) +
   theme(text = element_text(family = "serif", size = 16),
         axis.title.x = element_text(margin = margin(t = 7), size = 14),
@@ -785,13 +817,18 @@ scenB_input_flex <- build_jabba(
 scenB_run1_flex = fit_jabba(scenB_input_flex,quickmcmc=FALSE, ni = 100000, do.ppc = TRUE)
 ```
 
-```{r, echo=FALSE}
+The Kobe plot shows very broad distribution between quadrants, emphasizing uncertainty. Using a piecewise block on q limits the ability of the model to create overarching trends.
+
+```{r, echo=FALSE,  message=FALSE, warning=FALSE, results='hide', fig.height=5, fig.show='hold'}
 # Plots
 # Make individual plots
-jbplot_catcherror(scenB_run1_flex)
+
 jbplot_ppdist(scenB_run1_flex)
-jbplot_cpuefits(scenB_run1_flex)
-jbplot_logfits(scenB_run1_flex)
+
+par(mfrow=c(4,3),mar = c(3.5, 3.5, 0.5, 0.1))
+jbplot_catcherror(scenB_run1_flex, add = T)
+jbplot_cpuefits(scenB_run1_flex, add = T)
+jbplot_logfits(scenB_run1_flex, add = T)
 
 # Plot Status Summary
 par(mfrow=c(3,2),mar = c(3.5, 3.5, 0.5, 0.1))
@@ -831,6 +868,11 @@ MSY_summary_flex <- MSY_summary_flex %>%
 
 This model is a Stan model that encodes for a random walk on q in order to allow the model to adapt to variable fisher effiency, rather than forcing it to be constant or piecewise. 
 
+In this, Stan is used to produce two models - a random walk and a constant q model. These are both run on the Scen B data. This allows direct comparison between the two models to whether using a random walk on q improves the fit and predictive ability of the model. 
+
+
+## Random Walk
+
 ```{r, include=FALSE}
 RandomWalk <-cmdstan_model("RandomWalk.stan")
 
@@ -856,7 +898,10 @@ stanfit <- RandomWalk$sample(
 
 ```{r, echo=FALSE}
 # Checking convergence diagnostics
-stanfit$summary(variables=c("r", "K", "sigma_q", "sigma_proc", "sigma_obs"))%>%kable(digits=2)
+summ <- stanfit$summary(variables=c("r", "K", "sigma_q", "sigma_proc", "sigma_obs"))
+
+kable(summ, booktabs = TRUE) %>%
+  kable_styling(latex_options = "scale_down")
 
 # Density Plots
 standraws<-stanfit$draws(format="matrix")
@@ -878,14 +923,28 @@ N     <- length(scenB_run1$CPUE_true)
 I_obs <- scenB_run1$CPUE_true
 B_obs <- scenB_run1$biomass
 
-ppc_intervals(y = B_obs, yrep = B_rep[1:100, ]) +
-  ggtitle("PPC: random walk q — biomass timeseries")
+a<- ppc_intervals(y = B_obs, yrep = B_rep[1:100, ]) +
+  ggtitle("Biomass timeseries")
 
-ppc_intervals(y = I_obs, yrep = I_rep[1:100, ]) +
+b<- ppc_intervals(y = I_obs, yrep = I_rep[1:100, ]) +
   ylim(0, 10) +
-  ggtitle("PPC: random walk q — CPUE timeseries")
+  ggtitle("CPUE timeseries")
 
+(a + b) & 
+  plot_annotation(
+    title = "PPC: Random Walk q",
+    theme = theme(
+      plot.title = element_text(
+        family = "serif", 
+        face = "bold", 
+        hjust = 0.5,    
+        size = 20
+      )
+    )
+  )
 ```
+
+## Constant
 
 ```{r, include=FALSE}
 Constant <-cmdstan_model("Constant.stan")
@@ -913,7 +972,11 @@ stanfit_constant <- Constant$sample(
 
 ```{r, echo=FALSE}
 # Checking convergence diagnostics
-stanfit_constant$summary(variables=c("r", "K", "sigma_proc", "sigma_obs"))%>%kable(digits=2)
+summ_const <- stanfit_constant$summary(variables=c("r", "K", "sigma_proc", "sigma_obs"))
+
+kable(summ_const, booktabs = TRUE) %>%
+  kable_styling(font_size = 8) %>%
+  landscape()
 
 # Density Plots
 standraws_constant<-stanfit_constant$draws(format="matrix")
@@ -932,12 +995,25 @@ N     <- length(scenB_run1$CPUE_true)
 I_obs <- scenB_run1$CPUE_true
 B_obs <- scenB_run1$biomass
 
-ppc_intervals(y = B_obs, yrep = B_rep[1:100, ]) +
-  ggtitle("PPC: constant q — biomass timeseries")
+c <- ppc_intervals(y = B_obs, yrep = B_rep[1:100, ]) +
+  ggtitle("Biomass timeseries")
 
-ppc_intervals(y = I_obs, yrep = I_rep[1:100, ]) +
+d <- ppc_intervals(y = I_obs, yrep = I_rep[1:100, ]) +
   ylim(0, 10) +
-  ggtitle("PPC: constant q — CPUE timeseries")
+  ggtitle("CPUE timeseries")
+
+(c + d) & 
+  plot_annotation(
+    title = "PPC: Constant q",
+    theme = theme(
+      plot.title = element_text(
+        family = "serif", 
+        face = "bold", 
+        hjust = 0.5,    
+        size = 20
+      )
+    )
+  )
 ```
 
 ```{r, include=FALSE}
@@ -977,6 +1053,8 @@ table_constant <- table_constant %>%
   mutate(
     model = "Constant")
 ```
+
+## Comparison 
 
 ```{r, echo=FALSE}
 model3 <- bind_rows(table, table_constant)
@@ -1046,7 +1124,6 @@ ggplot(aes(x = model, y = mean_r), data = model3) +
   theme(text = element_text(family = "serif", size = 16),
         axis.title.x = element_text(margin = margin(t = 7), size = 14),
         axis.title.y = element_text(margin = margin(r = 10)))
-
 ```
 
 ```{r, echo=FALSE, warning=FALSE}
@@ -1070,7 +1147,7 @@ kable(waicTable) %>%
 
 Comparing the random walk and constant q Stan models using WAIC and LOOIC, the random walk model is preferred. This indicates that the random walk on q improves the predictive performance of a model when fitting to data that has adaptive fisher behavior. 
 
-# Model Evaluation
+# Overall Model Evaluation
 
 ```{r, echo=FALSE}
 df <- bind_rows(MSY_summary_scenB_model1, MSY_summary_scenB_model2, MSY_summary_flex, table)
@@ -1112,7 +1189,7 @@ ggplot(aes(x = model, y = meanMSY), data = df) +
         axis.title.y = element_text(margin = margin(r = 10)))
 
 #MSY Bias
-a <- ggplot(aes(x = model, y = rel_bias_MSY), data = df) +
+z <- ggplot(aes(x = model, y = rel_bias_MSY), data = df) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "grey50", alpha = 0.9) +
   geom_linerange(aes(ymin = lwr_rel_bias_MSY, ymax= upr_rel_bias_MSY), linewidth = 1.0) +
   geom_point(aes(), size = 4) +
@@ -1173,8 +1250,14 @@ ggplot(aes(x = model, y = mean_r), data = df) +
 
 The Random Walk model and informative priors models appear to do the best at estimating MSY, accounting for K and r. While the piecewise model estimates MSY somewhat successfully it is severely biased in its estimate for K. 
 
+# **Discussion**
+
 Overarchingly, these results indicate that data that has a variable (rather than constant) q increases uncertainty when using standard methods for fisheries stock assessment. These have the potential to indicate that the stock is in better condition than it truly is and overestimate MSY, both of which may influence policy setting and result in overharvest. 
 
-The use of informative priors, that suggest a strong biological understanding of the fisheries system, work to combat this and decrease the uncertainty in posterior estimatates of stock parameters. Putting a random walk on q performs similarly in its ability to extract accurate estimates of MSY, but can be more time intensive to produce. 
+Given that humans have learning capabilities and are able to identify areas in which fishing yields greater harvest for a given effort, it is likely that assuming a constant $q$ in fisheries stock assessments is incorrect. While it presents a simpler mathematical model, which is beneficial for easily producing stock assessments, presents not only a concern of flattening the diverse skill sets and history of use of fishers, but additionally risks setting incorrect harvest targets which poses economic and ecological risks. 
+
+The use of informative priors, that suggest a strong biological understanding of the fisheries system, work to combat this and decrease the uncertainty in posterior estimates of stock parameters. However, the extent of remaining uncertainty emphasizes that improved biological knowledge alone cannot substitute for the incorporation of social fisher behavior. Putting a random walk on q performs the best in its ability to extract accurate estimates of MSY, but can be more time intensive to produce. Weighing the input costs of model development with the potential risks associated with less-accurate models is necessary to consider. Additionally, this highlights the limitations of packages like JABBA that improve the ease of the modeling process, but may lack ability to add increased nuance. 
 
 These show that it is necessary to consider both the behavior of fishers as well as biological parameters when conducting stock assessments. Given that fisheries policy utilizes levers (TAC, ITQs, etc.) that aim to target human behavior, an understanding of human behavior as well as fisheries parameters allows for decreased uncertainty and greater accuracy in resultant stock assessments. 
+
+Future steps may involve translating the posterior MSY estimates to policy parameters. These parameters can be implemented back into POSEIDON, enabling greater understanding of the ramifications associated with uncertain estimates, both ecologically and economically. 
